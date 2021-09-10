@@ -60,7 +60,7 @@ class PlayerControllerMinimax(PlayerController):
         :rtype: object
 
         Sample initial data:
-        {'fish0': {'score': 11, 'type': 3}, 
+        { 'fish0': {'score': 11, 'type': 3}, 
           'fish1': {'score': 2, 'type': 1}, 
           ...
           'fish5': {'score': -10, 'type': 4},
@@ -83,7 +83,7 @@ class PlayerControllerMinimax(PlayerController):
         :rtype: str
         """
         # EDIT THIS METHOD TO RETURN BEST NEXT POSSIBLE MODE FROM MINIMAX MODEL ###
-
+        
         # NOTE: Don't forget to initialize the children of the current node 
         #       with its compute_and_get_children() method!
 
