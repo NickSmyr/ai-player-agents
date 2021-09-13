@@ -1,4 +1,6 @@
-from game_tree import Node
+import random
+
+from fishing_game_core.game_tree import Node
 
 
 class MinimaxModelSettings:
@@ -14,12 +16,12 @@ class MinimaxModel:
         self.settings = MinimaxModelSettings()
 
     # noinspection PyMethodMayBeStatic
-    def next_move_minimax(self, initial_node: Node) -> str:
+    def next_move_minimax(self, initial_node: Node) -> int:
         """
         Find next best move using the naive minimax algo, responding in no more than :attr:`self.settings.max_time' in
         seconds, while searching up to :attr:`self.settings.depth` depth.
         :param Node initial_node: root of the new graph to search for the solution
-        :return: a string representation of the next best move ('left', 'right', 'up', 'down', 'stay')
+        :return: an int representation of the next best move (0: "stay", 1: "up", 2: "down", 3: "left", 4: "right")
         """
         # TODO
-        return 'right'
+        return random.randrange(5)

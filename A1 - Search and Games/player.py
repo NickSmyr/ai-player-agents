@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import random
 
 from fishing_game_core.game_tree import Node
 from fishing_game_core.player_utils import PlayerController
@@ -84,9 +83,7 @@ class PlayerControllerMinimax(PlayerController):
         :rtype: str
         """
         # EDIT THIS METHOD TO RETURN BEST NEXT POSSIBLE MODE FROM MINIMAX MODEL ###
-        model.next_move_minimax(initial_node=initial_tree_node)
-        # NOTE: Don't forget to initialize the children of the current node 
+        # NOTE: Don't forget to initialize the children of the current node
         #       with its compute_and_get_children() method!
-
-        random_move = random.randrange(5)
-        return ACTION_TO_STR[random_move]
+        mm_move = model.next_move_minimax(initial_node=initial_tree_node)
+        return ACTION_TO_STR[mm_move]
