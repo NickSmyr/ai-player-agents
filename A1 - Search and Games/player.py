@@ -4,6 +4,7 @@ import random
 from fishing_game_core.game_tree import Node
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
+from minimax import MinimaxModel
 
 
 class PlayerControllerHuman(PlayerController):
@@ -52,12 +53,12 @@ class PlayerControllerMinimax(PlayerController):
             self.sender({"action": best_move, "search_time": None})
 
     def initialize_model(self, initial_data):
-        f"""
+        """
         Initialize your minimax model 
         :param initial_data: Game data for initializing minimax model
         :type initial_data: dict
         :return: Minimax model
-        :rtype: object
+        :rtype: MinimaxModel
 
         Sample initial data:
         { 'fish0': {'score': 11, 'type': 3}, 
@@ -68,14 +69,14 @@ class PlayerControllerMinimax(PlayerController):
 
         Please note that the number of fishes and their types is not fixed between test cases.
         """
-        # EDIT THIS METHOD TO RETURN A MINIMAX MODEL ###
-        return None
+        mm_model = MinimaxModel(initial_data=initial_data)
+        return mm_model
 
     def search_best_next_move(self, model, initial_tree_node):
         """
         Use your minimax model to find best possible next move for player 0 (green boat)
         :param model: Minimax model
-        :type model: object
+        :type model: MinimaxModel
         :param initial_tree_node: Initial game tree node 
         :type initial_tree_node: game_tree.Node 
             (see the Node class in game_tree.py for more information!)
@@ -83,7 +84,7 @@ class PlayerControllerMinimax(PlayerController):
         :rtype: str
         """
         # EDIT THIS METHOD TO RETURN BEST NEXT POSSIBLE MODE FROM MINIMAX MODEL ###
-        
+        model.next_move_minimax(initial_node=initial_tree_node)
         # NOTE: Don't forget to initialize the children of the current node 
         #       with its compute_and_get_children() method!
 

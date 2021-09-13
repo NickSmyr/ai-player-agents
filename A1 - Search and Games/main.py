@@ -25,6 +25,9 @@ class Settings:
         # Number of frames before an action is executed
         self.frames_per_action = 10
 
+        # Gameplay Speedup
+        self.gameplay_speedup = 1
+
     def load_from_dict(self, dictionary):
         """
         Load parameters into settings object from dictionary.
@@ -33,6 +36,10 @@ class Settings:
         """
         self.observations_file = dictionary.get("observations_file")
         self.player_type = dictionary.get("player_type", "human")
+        self.gameplay_speedup = int(dictionary.get("gameplay_speedup", 1))
+        # Updated playback speed as requested
+        self.frames_per_second *= self.gameplay_speedup
+        self.frames_per_action /= self.gameplay_speedup
 
 
 class Application(SettingLoader):
