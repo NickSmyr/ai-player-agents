@@ -1,8 +1,9 @@
 # Game tree for Fishing Derby
-from itertools import product
-import numpy as np
-from fishing_game_core.shared import OBS_TO_MOVES, ACT_TO_MOVES
 from copy import deepcopy
+
+import numpy as np
+
+from fishing_game_core.shared import OBS_TO_MOVES, ACT_TO_MOVES
 
 
 class State:
@@ -63,7 +64,7 @@ class State:
         """
         p0_caught = caught[0] if caught[0] is not None else -1
         p1_caught = caught[1] if caught[1] is not None else -1
-        self.player_caught = {0: p0_caught, 1:p1_caught}
+        self.player_caught = {0: p0_caught, 1: p1_caught}
 
     def set_fish_positions(self, fish_number, pos):
         """
@@ -190,16 +191,23 @@ class Node:
             #   self.player (the current player's index; MAX is 0 and MIN is 1)
             self.initialize_root(message, player)
 
-    def add_child(self, state: State, move: int, depth: int = 0, observations: dict = {}, probability: float = 1.0):
+    def add_child(self, state: State, move: int, depth: int = 0, observations=None, probability: float = 1.0):
         """
         Add a new node as a child of current node
-        :param state: child's state
-        :param move: child's move
-        :param probability: probability of accessing child
-        :param depth: depth of the child
-        :observations: observations of the game
-        :return:
+        :param State state: child's state
+        :param int move: child's move
+        :param int depth: depth of the child
+        :param dict observations: observations of the game (the entire sequence of fish moves as a dict of lists:
+                                  {0: [fish0_move0, ..., fishN_move0], ..., M: [fish0_moveM, ..., fishN_moveM]}
+                                  Fish moves: 4   0   5
+                                              2   8   3
+                                              6   1   7
+        :param float probability: probability of accessing child
+        :return: a new Node instance that has been added to current Node instance's children
         """
+        if observations is None:
+            observations = {}
+
         new_node = self.__class__(root=False)
         new_node.state = state
         new_node.parent = self
@@ -215,11 +223,11 @@ class Node:
         """
         Initialize root node.
         :param curr_state: parsed dict coming from game_controller
+        :param int player: 0 (we) / 1 (opponent)
         :return:
         """
-
         self.depth = 0
-        self.player = player # Root's player
+        self.player = player  # Root's player
         obs = curr_state["observations"]
         keys = sorted(obs.keys())
         obs = np.array([np.array(obs[k]) for k in keys])
@@ -249,28 +257,26 @@ class Node:
     def compute_and_get_children(self):
         """
         Populate the node with its children. Then return them.
-        :param:
         :return: list of children nodes
         """
-
-        if len(self.observations) == self.depth: # Cannot compute children any longer
+        if len(self.observations) == self.depth:  # Cannot compute children any longer
             return []
-        
-        if len(self.children) != 0: # If we already compute the children 
-            return self.children 
+
+        if len(self.children) != 0:  # If we have already computed the children
+            return self.children
 
         current_player = self.state.get_player()
         caught = self.state.get_caught()
         if caught[current_player] is not None:
             # Next action is always up for the current player
             new_state = self.compute_next_state(self.state, 1, self.observations[self.depth])
-            self.add_child(new_state, 1, self.depth+1, self.observations)
+            self.add_child(new_state, 1, self.depth + 1, self.observations)
         else:
             # Any action is possible
             for act in range(5):
                 new_state = self.compute_next_state(
                     self.state, act, self.observations[self.depth])
-                self.add_child(new_state, act, self.depth+1, self.observations)
+                self.add_child(new_state, act, self.depth + 1, self.observations)
 
         return self.children
 
@@ -289,7 +295,8 @@ class Node:
         new_state = State(len(fish_states.keys()))
         new_state.set_player(next_player)
         current_fishes_on_rod = current_state.get_caught()
-        self.compute_new_fish_states(new_state, fish_states, observations, current_player, fishes_on_rod=current_fishes_on_rod)
+        self.compute_new_fish_states(new_state, fish_states, observations, current_player,
+                                     fishes_on_rod=current_fishes_on_rod)
         new_hook_positions = self.compute_new_hook_states(
             hook_states, current_player, ACT_TO_MOVES[act])
         new_state.set_hook_positions(new_hook_positions)
@@ -345,7 +352,8 @@ class Node:
 
         return new_hook_states
 
-    def compute_new_fish_states(self, new_state, current_fish_positions, observations, current_player, fishes_on_rod=None):
+    def compute_new_fish_states(self, new_state, current_fish_positions, observations, current_player,
+                                fishes_on_rod=None):
         """
         Compute the new fish states given the observations
         :param new_state: state instance where to save the new fish positions
@@ -358,9 +366,9 @@ class Node:
             if fishes_on_rod[current_player] == k:
                 # Fishes on rod of current player can only move up
                 new_fish_obs_code = OBS_TO_MOVES[0]
-            elif fishes_on_rod[1-current_player] == k:
+            elif fishes_on_rod[1 - current_player] == k:
                 # Fishes on rod of other player do not move
-                new_fish_obs_code = (0,0)
+                new_fish_obs_code = (0, 0)
             else:
                 obs = observations[i]
                 new_fish_obs_code = OBS_TO_MOVES[obs]
@@ -368,7 +376,7 @@ class Node:
             curr_pos = current_fish_positions[k]
             new_state.set_fish_positions(k, self.xy_move(curr_pos, new_fish_obs_code))
 
-    def xy_move(self, pos, move, adv_pos = None):
+    def xy_move(self, pos, move, adv_pos=None):
         """
         Return the (x, y) position after a given move of the tuple pos. Wraps the x axis so that trespassing the right
         margin means appearing in the left and vice versa. Makes sure the hooks cannot cross each other.
