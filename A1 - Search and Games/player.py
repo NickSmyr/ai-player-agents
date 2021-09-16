@@ -8,9 +8,10 @@ from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 
 # from minimax import MinimaxModel
+from hparams import MAX_DEPTH, MAX_DEPTH_PRUNING
 
-MAX_DEPTH = 3
-MAX_DEPTH_PRUNING = 9
+
+
 
 
 def point_distance_l1(point1: tuple, point2: tuple, obstacle: tuple = None) -> float:
@@ -162,6 +163,7 @@ def minimax_pruning(node: Node, player: int = 0, alpha: float = -math.inf, beta:
         # Store node in the explored set (Graph Version)
         EXPLORED_SET[get_node_repr(node=node)] = {'move': children[argmax].move, 'value': max_value}
         return children[argmax].move, max_value
+    # Simple minimax
     #     v_max = -math.inf
     #     node_max = None
     #     for child in children:
