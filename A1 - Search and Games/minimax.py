@@ -1,5 +1,4 @@
 import math
-import random
 from typing import Optional, Tuple, List
 
 from fishing_game_core.game_tree import Node
@@ -8,7 +7,7 @@ from main import Settings
 
 class MinimaxModel:
     MAX_DEPTH = 3
-    MAX_DEPTH_PRUNING = 5
+    MAX_DEPTH_PRUNING = 3
 
     INITIAL_HOOK_POSITION = None
 
@@ -64,11 +63,11 @@ class MinimaxModel:
             #   - encourage winning
             (node.state.player_scores[0] - node.state.player_scores[1]) * 10,
             #   - discourage collisions
-            MinimaxModel.point_distance_l1(MinimaxModel.INITIAL_HOOK_POSITION, hook_pos) * 1,
+            # MinimaxModel.point_distance_l1(MinimaxModel.INITIAL_HOOK_POSITION, hook_pos) * 1,
             #   - encourage positions in the vicinity of closest fish
             -min([MinimaxModel.point_distance_l1(hook_pos, fp) * node.state.fish_scores[fi]
-                  for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 10,
-            2 * random.random(),
+                  for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 2,
+            # 2 * random.random(),
         ])
         # + 100 * min(
         # [MinimaxModel.point_distance_l2(node.state.hook_positions[0], fp, node.state.hook_positions[1])
@@ -121,8 +120,9 @@ class MinimaxModel:
         #             v_min = v
         #             node_min = child
         #     return node_min.move, v_min
-        argmin = min(range(len(children_values)), key=lambda v: children_values[v])
-        return children[argmin].move, children_values[argmin]
+        else:
+            argmin = min(range(len(children_values)), key=lambda v: children_values[v])
+            return children[argmin].move, children_values[argmin]
 
     @staticmethod
     def minimax_with_pruning(node: Node, player: int = 0, alpha: float = -math.inf,
