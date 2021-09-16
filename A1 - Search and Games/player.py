@@ -10,7 +10,7 @@ from fishing_game_core.shared import ACTION_TO_STR
 # from minimax import MinimaxModel
 
 MAX_DEPTH = 3
-MAX_DEPTH_PRUNING = 3
+MAX_DEPTH_PRUNING = 9
 
 
 def point_distance_l1(point1: tuple, point2: tuple, obstacle: tuple = None) -> float:
@@ -39,7 +39,7 @@ def heuristic(node: Node) -> float:
         #   - encourage winning
         (node.state.player_scores[0] - node.state.player_scores[1]) * 10,
         #   - discourage collisions
-        # MinimaxModel.point_distance_l1(MinimaxModel.INITIAL_HOOK_POSITION, hook_pos) * 1,
+        # point_distance_l1(MinimaxModel.INITIAL_HOOK_POSITION, hook_pos) * 1,
         #   - encourage positions in the vicinity of closest fish
         -min([point_distance_l1(hook_pos, fp) * node.state.fish_scores[fi]
               for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 2,
@@ -64,8 +64,8 @@ def minimax(node: Node, player: int = 0) -> Tuple[int, float]:
     # Recurse
     children_values = [minimax(node=child, player=1 - player)[1] for child in children]
     children_values_len = len(children_values)
-    if not node.depth:
-        print(f'depth={node.depth}: ' + str(children_values), file=stderr)
+    # if not node.depth:
+    #     print(f'depth={node.depth}: ' + str(children_values), file=stderr)
     if player == 0:
         #   - find max value of children
         argmax = max(range(children_values_len), key=lambda v: children_values[v])
@@ -101,6 +101,19 @@ def minimax(node: Node, player: int = 0) -> Tuple[int, float]:
         return children[argmin].move, children_values[argmin]
 
 
+EXPLORED_SET = {}
+
+
+def get_node_repr(node: Node) -> str:
+    """
+    Two nodes have the same representation if the respective state boards seem identical (fishes & hooks at the same
+    positions, same player's turn).
+    :param Node node: a game tree node
+    :return: a node representation as a str object
+    """
+    return f'p{node.state.player}hp{node.state.hook_positions}fp{node.state.fish_positions}'
+
+
 # noinspection DuplicatedCode
 def minimax_pruning(node: Node, player: int = 0, alpha: float = -math.inf, beta: float = math.inf) -> Tuple[int, float]:
     """
@@ -109,6 +122,12 @@ def minimax_pruning(node: Node, player: int = 0, alpha: float = -math.inf, beta:
     :param int player: 0 (we) / 1 (opponent)
     :return: an int representation of the branch/move (see MinimaxModel::next_move_minimax())
     """
+    # Repeated states checking
+    node_repr = get_node_repr(node=node)
+    if node_repr in EXPLORED_SET:
+        return EXPLORED_SET[node_repr].values()
+
+    # Get all children nodes of current
     children = node.compute_and_get_children()
 
     # Check if reached leaf nodes or max depth
@@ -118,25 +137,30 @@ def minimax_pruning(node: Node, player: int = 0, alpha: float = -math.inf, beta:
     # Recurse
     if player == 0:
         #   - find values of children
-        children_values = []
-        for child in children:
+        # children_values = []
+        argmax = 0
+        args_max = []
+        max_value = -math.inf
+        for i, child in enumerate(children):
             m, v = minimax_pruning(node=child, player=1, alpha=alpha, beta=beta)
-            children_values.append(v)
-            alpha = max(alpha, v)
+            # children_values.append(v)
+            if v > max_value:
+                max_value = v
+                argmax = i
+                args_max = [i, ]
+            elif v == max_value:
+                args_max.append(i)
+            alpha = max(alpha, max_value)
             if beta <= alpha:
                 break
-        children_values_len = len(children_values)
-        #   - log
-        if not node.depth:
-            print(f'depth={node.depth}: ' + str(children_values), file=stderr)
-        #   - find max value of children
-        argmax = max(range(children_values_len), key=lambda vi: children_values[vi])
-        max_value = children_values[argmax]
         #   - in case of equal value, select the move <> 0
-        if node.depth == 0:
-            for i in range(argmax, children_values_len):
-                if children_values[i] == max_value and children[i].move != 0:
-                    return children[i].move, max_value
+        if node.depth == 0 and len(args_max) > 1:
+            print(f'depth={node.depth}: ' + str(max_value), file=stderr)
+            for am in args_max:
+                if children[am].move != 0:
+                    return children[am].move, max_value
+        # Store node in the explored set (Graph Version)
+        EXPLORED_SET[get_node_repr(node=node)] = {'move': children[argmax].move, 'value': max_value}
         return children[argmax].move, max_value
     #     v_max = -math.inf
     #     node_max = None
@@ -160,16 +184,20 @@ def minimax_pruning(node: Node, player: int = 0, alpha: float = -math.inf, beta:
     #     return node_min.move, v_min
     else:
         #   - find values of children
-        children_values = []
-        for child in children:
+        argmin = 0
+        min_value = math.inf
+        for i, child in enumerate(children):
             m, v = minimax_pruning(node=child, player=0, alpha=alpha, beta=beta)
-            children_values.append(v)
-            beta = min(beta, v)
+            #   - find min value of children (rational opponent)
+            if v < min_value:
+                min_value = v
+                argmin = i
+            beta = min(beta, min_value)
             if beta <= alpha:
                 break
-        #   - find min value of children (rational opponent)
-        argmin = min(range(len(children_values)), key=lambda vi: children_values[vi])
-        return children[argmin].move, children_values[argmin]
+        # Store node in the explored set (Graph Version)
+        EXPLORED_SET[get_node_repr(node=node)] = {'move': children[argmin].move, 'value': min_value}
+        return children[argmin].move, min_value
 
 
 class PlayerControllerHuman(PlayerController):
@@ -254,8 +282,8 @@ class PlayerControllerMinimax(PlayerController):
         # Save initial hook position of our boat
         # MinimaxModel.INITIAL_HOOK_POSITION = initial_tree_node.state.hook_positions[0]
         # Compute and return next move using Minimax
-        mm_move = minimax(initial_tree_node)[0]
-        # mm_move = minimax_pruning(initial_tree_node)[0]
+        # mm_move, _ = minimax(initial_tree_node)
+        mm_move, _ = minimax_pruning(initial_tree_node)
         # mm_move = model.next_move_minimax(initial_node=initial_tree_node)
         # mm_move = model.next_move_minimax_pruning(initial_node=initial_tree_node)
         return ACTION_TO_STR[mm_move]
