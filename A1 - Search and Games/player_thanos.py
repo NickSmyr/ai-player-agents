@@ -7,8 +7,6 @@ from fishing_game_core.game_tree import Node
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 
-# from minimax import MinimaxModel
-
 MAX_DEPTH = 3
 MAX_DEPTH_PRUNING = 9
 
@@ -76,26 +74,6 @@ def minimax(node: Node, player: int = 0) -> Tuple[int, float]:
                 if children_values[i] == max_value and children[i].move != 0:
                     return children[i].move, max_value
         return children[argmax].move, max_value
-    #     v_max = -math.inf
-    #     node_max = None
-    #     for child in children:
-    #         v = MinimaxModel.minimax(node=child, player=1)[1]
-    #         if v > v_max:
-    #             v_max = v
-    #             node_max = child
-    #     if node.depth == 0:
-    #         print(f'v={v}')
-    #     return node_max.move, v_max
-    # # Min
-    # else:
-    #     v_min = +math.inf
-    #     node_min = None
-    #     for child in children:
-    #         v = MinimaxModel.minimax(node=child, player=0)[1]
-    #         if v < v_min:
-    #             v_min = v
-    #             node_min = child
-    #     return node_min.move, v_min
     else:
         argmin = min(range(len(children_values)), key=lambda v: children_values[v])
         return children[argmin].move, children_values[argmin]
