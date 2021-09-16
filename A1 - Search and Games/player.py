@@ -68,9 +68,10 @@ class PlayerControllerMinimax(PlayerController):
 
         Please note that the number of fishes and their types is not fixed between test cases.
         """
-        mm_model = MinimaxModel(initial_data=initial_data)
+        mm_model = MinimaxModel(initial_data=initial_data, settings=self.settings)
         return mm_model
 
+    # noinspection PyMethodMayBeStatic
     def search_best_next_move(self, model, initial_tree_node):
         """
         Use your minimax model to find best possible next move for player 0 (green boat)
@@ -82,8 +83,8 @@ class PlayerControllerMinimax(PlayerController):
         :return: either "stay", "left", "right", "up" or "down"
         :rtype: str
         """
-        # EDIT THIS METHOD TO RETURN BEST NEXT POSSIBLE MODE FROM MINIMAX MODEL ###
-        # NOTE: Don't forget to initialize the children of the current node
-        #       with its compute_and_get_children() method!
+        # Save initial hook position of our boat
+        MinimaxModel.INITIAL_HOOK_POSITION = initial_tree_node.state.hook_positions[0]
+        # Compute and return next move using Minimax
         mm_move = model.next_move_minimax(initial_node=initial_tree_node)
         return ACTION_TO_STR[mm_move]

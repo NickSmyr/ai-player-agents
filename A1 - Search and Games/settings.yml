@@ -1,6 +1,7 @@
 # Observations file
-observations_file: "observations/one_fish_still.json"
+#observations_file: "observations/one_fish_still.json"
 #observations_file: "observations/two_fishes_still.json"
+observations_file: "observations/three_fishes.json"
 #observations_file: "observations/test_0.json"
 #observations_file: "observations/test_1.json"
 #observations_file: "observations/test_2.json"
@@ -10,4 +11,4 @@ observations_file: "observations/one_fish_still.json"
 player_type: "ai_minimax"
 
 # Gameplay Speedup
-gameplay_speedup: 10
+gameplay_speedup: 1

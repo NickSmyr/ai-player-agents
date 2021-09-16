@@ -39,7 +39,7 @@ class Settings:
         self.gameplay_speedup = int(dictionary.get("gameplay_speedup", 1))
         # Updated playback speed as requested
         self.frames_per_second *= self.gameplay_speedup
-        self.frames_per_action /= self.gameplay_speedup
+        # self.frames_per_action /= self.gameplay_speedup
 
 
 class Application(SettingLoader):
