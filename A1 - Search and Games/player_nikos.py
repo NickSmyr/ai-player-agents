@@ -10,7 +10,7 @@ from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 
 # from minimax import MinimaxModel
-from hparams import MAX_DEPTH, MAX_DEPTH_PRUNING, TIME_LIMIT
+from hparams import *
 
 
 def point_distance_l1(point1: tuple, point2: tuple, obstacle: tuple = None) -> float:
@@ -23,15 +23,50 @@ def point_distance_l1(point1: tuple, point2: tuple, obstacle: tuple = None) -> f
     :param tuple obstacle: (x,y) coordinates of obstacle point (i.e. the opponent's boat)
     :return: distance as a float object
     """
-    dist = abs(point1[0] - point2[0]) + abs(point1[1] - point2[1])
-    # print(point1, point2, dist)
-    return dist
+    dist1 = abs(point1[0] - point2[0]) + abs(point1[1] - point2[1])
+    dist2 = 20 - abs(point1[0] - point2[0]) + abs(point1[1] - point2[1])
+    # debug(point1, point2, dist)
+    return min(dist1, dist2)
+
+
+assert point_distance_l1((0, 0), (19, 0)) == 1
+assert point_distance_l1((0, 0), (19, 1)) == 2
+assert point_distance_l1((1, 2), (5, 3)) == 5
 
 
 def heuristic(node: Node) -> float:
+    if HEURISTIC == "simple":
+        value = heuristic_simple(node)
+    elif HEURISTIC == "test":
+        value = heuristic_test(node)
+    else:
+        value = math.inf
+    # debug("leaf heuristic " , value, file=stderr)
+    node.heuristic = value
+    return value
+
+
+def heuristic_test(node: Node) -> float:
     """
     Heuristic function to compute the value at any given node/state.
     :param Node node: a graph node as game_tree.Node object
+
+    We need to return the value of the current state.
+    What's the value of the current state
+        - Our and enemy scores
+        - Value of position
+            - Distance from good fishes
+
+    The value of each fish depends
+        - Distance from Hook
+        - Y coordinate
+        - Score of the fish
+    We need to look at each fish and decide which one to "chase" so
+        - its better to be close to a cluster of fishes near the surface
+        than close to one fish on god knows where
+    heuristic : sum of captured fish values + sum of possible values for each fish
+    each captured fish with a score x must have more value than each fish with score x but with any distance
+
     :return: the heuristic value as a float
     """
     # return 2 * (node.state.player_scores[0] - node.state.player_scores[1]) + \
@@ -47,9 +82,28 @@ def heuristic(node: Node) -> float:
               for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 2,
          #2 * random.random(),
     ])
-    node.heuristic = value
+    #node.heuristic = value
     return value
-    #return node.state.player_scores[0] - node.state.player_scores[1]
+
+def heuristic_simple(node: Node) -> float:
+    value = node.state.player_scores[0] - node.state.player_scores[1]
+    return value
+
+
+def player_value(node: Node, player: int):
+    fish_value_for_player = 0
+    if player == 0 and node.state.player_caught[0] != -1 and node.state.fish_scores[node.state.player_caught[0]] > 0:
+        return 500
+    for fi, fp in node.state.fish_positions.items():
+        # Ignore fishes with negative score
+        fish_value = node.state.fish_scores[fi]
+        if fish_value < 0:
+            continue
+        # Divide by total distance needed to travel to capture the fish
+        fish_value /= (point_distance_l1(node.state.hook_positions[player], fp) + 1 + fp[1])
+        fish_value_for_player += fish_value
+
+    return fish_value_for_player + node.state.player_scores[player]
 
 
 # noinspection DuplicatedCode
@@ -70,7 +124,7 @@ def minimax(node: Node, player: int = 0) -> Tuple[int, float]:
     children_values = [minimax(node=child, player=1 - player)[1] for child in children]
     children_values_len = len(children_values)
     # if not node.depth:
-    #     print(f'depth={node.depth}: ' + str(children_values), file=stderr)
+    #     debug(f'depth={node.depth}: ' + str(children_values), file=stderr)
     if player == 0:
         #   - find max value of children
         argmax = max(range(children_values_len), key=lambda v: children_values[v])
@@ -89,7 +143,7 @@ def minimax(node: Node, player: int = 0) -> Tuple[int, float]:
     #             v_max = v
     #             node_max = child
     #     if node.depth == 0:
-    #         print(f'v={v}')
+    #         debug(f'v={v}')
     #     return node_max.move, v_max
     # # Min
     # else:
@@ -113,13 +167,14 @@ def get_node_repr(node: Node) -> str:
     :param Node node: a game tree node
     :return: a node representation as a str object
     """
-    return f'p{node.state.player}hp{node.state.hook_positions}fp{node.state.fish_positions}'
+    return f'p{node.state.player}hp{node.state.hook_positions}fp{node.state.fish_positions}-{node.state.player_scores[0] - node.state.player_scores[1]}'
 
 
 class Timer():
     """
     Timer class. Creates a timer with a time limit on startup.
     """
+
     def __init__(self, time_limit):
         self.time_limit = time_limit
         self.initial_time = time.time()
@@ -128,17 +183,22 @@ class Timer():
         """
         Returns true if the timer has expired
         """
-        #print("TIMESUP " , file=stderr)
+        # debug("TIMESUP " , file=stderr)
         return (time.time() - self.initial_time) > self.time_limit
+
 
 class IDS:
     def __init__(self, time_limit):
         """
         Creates the IDS, model. The solution is returned after at most time_limit seconds
         """
-        self.time_limit= time_limit
+        self.time_limit = time_limit
+        self.mm_model = IDSMinimaxPruner()
+        # self.mm_model = IDSMinimax()
 
     def find_solution(self, node: Node):
+        debug(f"Initial score {heuristic(node)}", file=stderr)
+        debug(f"Current position {node.state.hook_positions[0]}")
         """
         Find the best solution within the time span
         """
@@ -147,15 +207,20 @@ class IDS:
         best_value = -math.inf
         for solution in self.iterate_solutions(node, timer):
             move, value = solution
-            best_value = value
-            best_move = move
+            if not ADHERE_TO_LOGIC:
+                if value > best_value:
+                    best_value = value
+                    best_move = move
+            else:
+                best_value = value
+                best_move = move
 
         if best_move is not None:
             return best_move, best_value
         else:
             return 0, -1
 
-    def iterate_solutions(self, node: Node, timer : Timer):
+    def iterate_solutions(self, node: Node, timer: Timer):
         """
         Iterate over solutions
         """
@@ -165,16 +230,16 @@ class IDS:
                 return
             try:
                 # Find solutions of increasing depth
-                #print(f"Minimax for depth {depth}")
-                #print(f"Starting search for depth {depth}", file=stderr)
-                self.mm_model = IDSMinimaxPruner()
-                move, value = self.mm_model.minimax_pruning(node, depth=depth, timer=timer)
-                #print(f"Output move {ACTION_TO_STR[move]} and value {value}")
+                #debug(f"Starting search for depth {depth}", file=stderr)
+                self.mm_model.reset()
+                assert self.mm_model.explored_set == {}
+                move, value = self.mm_model.minimax(node, depth=depth, timer=timer)
+                debug(f"Output move {ACTION_TO_STR[move]} and value {value} for depth {depth}", file=stderr)
                 yield move, value
                 depth += 1
             # If stop iteration raised by mm model then stop
             except StopIteration:
-                print("Maximum depth reached ", depth, file=sys.stderr)
+                debug("Maximum depth reached ", depth - 1, file=sys.stderr)
                 return
 
 
@@ -182,40 +247,52 @@ class IDSMinimaxPruner:
     def __init__(self):
         self.explored_set = {}
 
+    def reset(self):
+        self.explored_set = {}
+
+    def minimax(self, node: Node, depth: int, timer: Timer):
+        return self.minimax_pruning(node, depth=depth, timer=timer)
+
     def minimax_pruning(self, node: Node, player: int = 0, alpha: float = -math.inf, beta: float = math.inf,
-                        depth: int = None, timer : Timer = None) -> Tuple[int, float]:
+                        depth: int = None, timer: Timer = None) -> Tuple[int, float]:
         """
         Minimax algorithm implementation.
         :param Node node: tree node to be expanded (starts from root)
         :param int player: 0 (we) / 1 (opponent)
         :return: an int representation of the branch/move (see MinimaxModel::next_move_minimax())
         """
-        #print(f"Start of recursion with depth {depth} ", file=stderr)
-        # Check if we have run out of time
+        # debug(f"Start of recursion with depth {depth} ", file=stderr)
+        # Check if we have run out of time\
+        ds = "none"
         if timer is not None and timer.timesup():
-            #print("recursion ended due to time " , file=stderr)
+            # debug("recursion ended due to time " , file=stderr)
             raise StopIteration
         # Repeated states checking
-        node_repr = get_node_repr(node=node)
-        if node_repr in self.explored_set:
-            #print("recursion ended due to explored " , file=stderr)
-            return self.explored_set[node_repr].values()
+        if CHECK_REPEATED_STATES:
+            node_repr = get_node_repr(node=node)
+            if node_repr in self.explored_set:
+                return self.explored_set[node_repr].values()
 
         # Get all children nodes of current
         children = node.compute_and_get_children()
+        stay = children[0]
+        # Always discover stay last
+        children = children[1:] + [stay]
 
         # Check if reached leaf nodes or max depth
         if len(children) == 0 or node.depth == depth:
-            #print("recursion ended due to terminal node or max depth " , file=stderr)
+            # debug("recursion ended due to terminal node or max depth " , file=stderr)
             return node.move if node.move is not None else 0, heuristic(node=node)
 
         # Recurse
         if player == 0:
             #   - find values of children
             # children_values = []
-            def appraiser(x : Node):
-                return x.heuristic if "heuristic" in x.__dict__ else -math.inf
-            children = sorted(children, key=appraiser, reverse=True)
+            if USE_MOVE_REORDERING:
+                def appraiser(x: Node):
+                    return x.heuristic if "heuristic" in x.__dict__ else -math.inf
+
+                children = sorted(children, key=appraiser, reverse=True)
             argmax = 0
             args_max = []
             max_value = -math.inf
@@ -232,21 +309,23 @@ class IDSMinimaxPruner:
                 if beta <= alpha:
                     break
             #   - in case of equal value, select the move <> 0
-            if node.depth == 0 and len(args_max) > 1:
-                #print(f'depth={node.depth}: ' + str(max_value), file=stderr)
-                for am in args_max:
-                    if children[am].move != 0:
-                        return children[am].move, max_value
+            # if node.depth == 0 and len(args_max) > 1:
+            ## debug(f'depth={node.depth}: ' + str(max_value), file=stderr)
             # Store node in the explored set (Graph Version)
-            self.explored_set[get_node_repr(node=node)] = {'move': children[argmax].move, 'value': max_value}
+            if CHECK_REPEATED_STATES:
+                self.explored_set[get_node_repr(node=node)] = {'move': children[argmax].move, 'value': max_value}
+            for am in args_max:
+                if children[am].move != 0:
+                    return children[am].move, max_value
             return children[argmax].move, max_value
 
         else:
             #   - find values of children
-            def appraiser(x : Node):
-                return x.heuristic if "heuristic" in x.__dict__ else math.inf
+            if USE_MOVE_REORDERING:
+                def appraiser(x: Node):
+                    return x.heuristic if "heuristic" in x.__dict__ else math.inf
 
-            children = sorted(children, key=appraiser)
+                children = sorted(children, key=appraiser)
             argmin = 0
             min_value = math.inf
             for i, child in enumerate(children):
@@ -259,6 +338,65 @@ class IDSMinimaxPruner:
                 if beta <= alpha:
                     break
             # Store node in the explored set (Graph Version)
+            if CHECK_REPEATED_STATES:
+                self.explored_set[get_node_repr(node=node)] = {'move': children[argmin].move, 'value': min_value}
+            return children[argmin].move, min_value
+
+
+class IDSMinimax:
+    def __init__(self):
+        self.explored_set = {}
+
+    def reset(self):
+        self.explored_set = {}
+
+    def minimax(self, node: Node, depth: int, timer: Timer):
+        return self.minimax_normal(node, depth=depth, timer=timer)
+
+    def minimax_normal(self, node: Node, player: int = 0, depth: int = None, timer: Timer = None) -> Tuple[int, float]:
+        """
+        Minimax algorithm implementation.
+        :param Node node: tree node to be expanded (starts from root)
+        :param int player: 0 (we) / 1 (opponent)
+        :return: an int representation of the branch/move (see MinimaxModel::next_move_minimax())
+        """
+        if timer is not None and timer.timesup():
+            # debug("recursion ended due to time " , file=stderr)
+            raise StopIteration
+        # Repeated states checking
+        node_repr = get_node_repr(node=node)
+        if node_repr in self.explored_set:
+            # debug("recursion ended due to explored " , file=stderr)
+            return self.explored_set[node_repr].values()
+
+        # Get all children nodes of current
+        children = node.compute_and_get_children()
+
+        # Check if reached leaf nodes or max depth
+        if len(children) == 0 or node.depth == depth:
+            return node.move if node.move is not None else 0, heuristic(node=node)
+
+        # Recurse
+        if player == 0:
+            argmax = -1
+            max_value = -math.inf
+            for i, child in enumerate(children):
+                m, v = self.minimax_normal(node=child, player=1, depth=depth, timer=timer)
+                if v >= max_value:
+                    max_value = v
+                    argmax = i
+            self.explored_set[get_node_repr(node=node)] = {'move': children[argmax].move, 'value': max_value}
+            return children[argmax].move, max_value
+
+        else:
+            argmin = 0
+            min_value = math.inf
+            for i, child in enumerate(children):
+                m, v = self.minimax_normal(node=child, player=0, depth=depth, timer=timer)
+                #   - find min value of children (rational opponent)
+                if v <= min_value:
+                    min_value = v
+                    argmin = i
             self.explored_set[get_node_repr(node=node)] = {'move': children[argmin].move, 'value': min_value}
             return children[argmin].move, min_value
 
@@ -286,6 +424,8 @@ class MinimaxPruner:
 
         # Check if reached leaf nodes or max depth
         if len(children) == 0 or node.depth == MAX_DEPTH_PRUNING:
+            if heuristic(node) == 3:
+                print("t")
             return node.move, heuristic(node=node)
 
         # Recurse
@@ -309,7 +449,7 @@ class MinimaxPruner:
                     break
             #   - in case of equal value, select the move <> 0
             if node.depth == 0 and len(args_max) > 1:
-                print(f'depth={node.depth}: ' + str(max_value), file=stderr)
+                debug(f'depth={node.depth}: ' + str(max_value), file=stderr)
                 for am in args_max:
                     if children[am].move != 0:
                         return children[am].move, max_value
@@ -347,6 +487,8 @@ class PlayerControllerHuman(PlayerController):
         """
         while True:
             # send message to game that you are ready
+            msg = self.receiver()
+            node = Node(message=msg, player=0)
             msg = self.receiver()
             if msg["game_over"]:
                 return
@@ -398,8 +540,8 @@ class PlayerControllerMinimax(PlayerController):
 
         Please note that the number of fishes and their types is not fixed between test cases.
         """
-        #self.mm_model = MinimaxPruner()
-        self.mm_model = IDS(TIME_LIMIT) # 75 msec
+        # self.mm_model = MinimaxPruner()
+        self.mm_model = IDS(TIME_LIMIT)  # 75 msec
 
     # noinspection PyMethodMayBeStatic
     def search_best_next_move(self, model, initial_tree_node):
@@ -420,5 +562,12 @@ class PlayerControllerMinimax(PlayerController):
         mm_move, val = self.mm_model.find_solution(initial_tree_node)
         # mm_move = model.next_move_minimax(initial_node=initial_tree_node)
         # mm_move = model.next_move_minimax_pruning(initial_node=initial_tree_node)
-        print(f"Move {ACTION_TO_STR[mm_move]} with val {val}", file=sys.stderr)
+        debug(f"Move {ACTION_TO_STR[mm_move]} with val {val}")
         return ACTION_TO_STR[mm_move]
+
+
+def debug(*args, **kwargs):
+    if DEBUG:
+        print(*args, file=stderr)
+    else:
+        return
