@@ -1,5 +1,15 @@
 Artificial Intelligence DD2380
 
+## TODO WITH HEURISTIC
+- [x] Check if winning state
+- [x] Check if losing state
+- [ ] Fix distance to consider distance of lifting the fish
+- [x] Fix distance for negatively-weighted fishes
+- [x] Avoid moving left/right if opponent is in that place
+- [x] Avoid "up" if hook is at its highest point is not holding any fish
+- [x] IDS + Re-using values for ordering alpha-beta nodes
+
+
 A1 - Minimax
 ===
 

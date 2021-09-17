@@ -1,22 +1,22 @@
-import sys
 import json
+import sys
 from datetime import datetime
-import numpy as np
+from io import UnsupportedOperation
 from os.path import join
 from pathlib import Path
-from io import UnsupportedOperation
 
+import numpy as np
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.lang import Builder
 
-from fishing_game_core.widgets import Boat, TimeBoard, Stats, FishingDerby, Fish
 from fishing_game_core.communicator import Communicator
-from fishing_game_core.shared import SettingLoader
 from fishing_game_core.player_utils import Player
 from fishing_game_core.sequences import Sequences
+from fishing_game_core.shared import SettingLoader
 from fishing_game_core.shared import TYPE_TO_SCORE
+from fishing_game_core.widgets import Boat, TimeBoard, Stats, FishingDerby, Fish
 
 home = str(Path.home())
 
@@ -68,17 +68,18 @@ class PrintScore2Players(PrintScoresAbstract):
     def print_score(self):
         if hasattr(self, 'latest_msg') and self.latest_msg is not None and self.latest_msg['search_time'] is not None:
             search_time = self.latest_msg['search_time']
-            print("Elapsed time:", str(self.time) + '/' + str(self.total_time),
-              "s\tScore:", self.players[0].score - self.players[1].score, '\tSearch time:', '%.2E' % search_time)
+            # print("Elapsed time:", str(self.time) + '/' + str(self.total_time),
+            #   "s\tScore:", self.players[0].score - self.players[1].score, '\tSearch time:', '%.2E' % search_time)
             return
-        print("Elapsed time:", str(self.time) + '/' + str(self.total_time),
-              "s\tScore:", self.players[0].score - self.players[1].score)
+        # print("Elapsed time:", str(self.time) + '/' + str(self.total_time),
+        #       "s\tScore:", self.players[0].score - self.players[1].score)
 
 
 class PrintScore1Player(PrintScoresAbstract):
     def print_score(self):
-        print("Elapsed time:", str(self.time) + '/' + str(self.total_time),
-              "s\tScore:", self.players[0].score)
+        # print("Elapsed time:", str(self.time) + '/' + str(self.total_time),
+        #       "s\tScore:", self.players[0].score)
+        pass
 
 
 class GamesWithBoats:

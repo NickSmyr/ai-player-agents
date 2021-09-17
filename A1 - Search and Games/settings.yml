@@ -11,4 +11,4 @@ observations_file: "observations/three_fishes.json"
 player_type: "ai_minimax"
 
 # Gameplay Speedup
-gameplay_speedup: 1
+gameplay_speedup: 10
