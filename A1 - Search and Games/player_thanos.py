@@ -11,7 +11,8 @@ from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 
 MAX_DEPTH = 3
-MAX_DEPTH_PRUNING = 9
+MAX_DEPTH_PRUNING = 7
+MAX_DEPTH_IDS = 9
 RS_COUNT = 0
 EXPLORED_SET = {}
 IDS_VALUES = {}  # serial saving
@@ -213,8 +214,7 @@ def minimax_pruning_max(node: Node, alpha: float = -math.inf, beta: float = math
     #     return 0, +1000.
 
     # Get all children nodes of current
-    children = sorted(node.compute_and_get_children(), key=lambda c: IDS_VALUES.get(get_node_repr(c), heuristic(c)),
-                      reverse=True)
+    children = sorted(node.compute_and_get_children(), key=heuristic, reverse=True)
 
     # Check if reached leaf nodes or max depth
     if len(children) == 0 or max_depth == 0:
@@ -282,13 +282,13 @@ def minimax_pruning_max(node: Node, alpha: float = -math.inf, beta: float = math
                 return children[am].move, max_value
     # Store node in the explored set (Graph Version)
     EXPLORED_SET[node_repr] = {'move': children[argmax].move, 'value': max_value}
-    IDS_VALUES[node_repr] = max_value
+    # IDS_VALUES[node_repr] = max_value
     return children[argmax].move, max_value
 
 
 # noinspection DuplicatedCode
 def minimax_pruning_min(node: Node, alpha: float = -math.inf, beta: float = math.inf,
-                        max_depth: int = MAX_DEPTH) -> Tuple[int, float]:
+                        max_depth: int = MAX_DEPTH_PRUNING) -> Tuple[int, float]:
     """
     Minimax algorithm implementation for MIN player (opponent's boat).
     :param Node node: tree node to be expanded (starts from root)
@@ -343,7 +343,7 @@ def minimax_pruning_min(node: Node, alpha: float = -math.inf, beta: float = math
             break
     # Store node in the explored set (Graph Version)
     EXPLORED_SET[node_repr] = {'move': children[argmin].move, 'value': min_value}
-    IDS_VALUES[node_repr] = min_value
+    # IDS_VALUES[node_repr] = min_value
     return children[argmin].move, min_value
 
 
@@ -444,7 +444,7 @@ class PlayerControllerMinimax(PlayerController):
 
         final_mm_move = 0
         old_mm_value = -math.inf
-        for d in range(MAX_DEPTH):
+        for d in range(MAX_DEPTH_PRUNING):
             EXPLORED_SET = {}
             try:
                 mm_move, mm_value = minimax_pruning_max(initial_tree_node, max_depth=d)
