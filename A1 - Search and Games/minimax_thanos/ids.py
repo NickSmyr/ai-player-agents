@@ -13,8 +13,9 @@ class IDSAgent(MinimaxAgent):
     Augmentations from ABAgent:
     ✅  Iterative Deepening Search (IDS)
     ✅  Add timeout at 60ms
+    ✅  Check for invalid moves (to further prune the tree)
     ❌  Reuse of results for reordering
-    ❌ Add checks for 1 fish in heuristic
+    ❌  Add checks for 1 fish in heuristic
     """
     TOTAL_FISH_SCORE = 0  # sum of the positive scores
     TOTAL_FISH_SCORE_HALF = 0  # half of sum of the positive scores
