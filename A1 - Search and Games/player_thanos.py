@@ -9,6 +9,9 @@ from typing import Tuple
 from fishing_game_core.game_tree import Node
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
+# from minimax.naive import NaiveAgent
+from minimax_thanos.ids import IDSAgent
+from minimax_thanos.utils import MinimaxAgentHParams as HParams
 
 MAX_DEPTH = 3
 MAX_DEPTH_PRUNING = 7
@@ -378,7 +381,7 @@ class PlayerControllerMinimax(PlayerController):
         # Generate game tree object
         first_msg = self.receiver()
         # Initialize your minimax model
-        model = self.initialize_model(initial_data=first_msg)
+        model = self.initialize_model2(initial_data=first_msg)
 
         while True:
             msg = self.receiver()
@@ -387,11 +390,26 @@ class PlayerControllerMinimax(PlayerController):
             node = Node(message=msg, player=0)
 
             # Possible next moves: "stay", "left", "right", "up", "down"
-            best_move = self.search_best_next_move(
+            best_move = self.search_best_next_move2(
                 model=model, initial_tree_node=node)
 
             # Execute next action
             self.sender({"action": best_move, "search_time": None})
+
+    def initialize_model2(self, initial_data):
+        # return NaiveAgent(initial_data, hparams=HParams({
+        #     'MAX_DEPTH': 3,
+        # }))
+        # return ABAgent(initial_data, hparams=HParams({
+        #     'MAX_DEPTH': 6,
+        # }))
+        return IDSAgent(initial_data, hparams=HParams({
+            'MAX_DEPTH': 9,
+            'TIMEOUT_DURATION': 60 * 1e-3,
+        }))
+
+    def search_best_next_move2(self, model, initial_tree_node):
+        return ACTION_TO_STR[model.get_next_move(initial_tree_node)[0]]
 
     def initialize_model(self, initial_data):
         """
