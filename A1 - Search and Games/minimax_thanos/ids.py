@@ -17,6 +17,7 @@ class IDSAgent(MinimaxAgent):
     ❌  Reuse of results for reordering
     ❌  Add checks for 1 fish in heuristic
     """
+    CHECK_REPEATED_STATES = False
     TOTAL_FISH_SCORE = 0  # sum of the positive scores
     TOTAL_FISH_SCORE_HALF = 0  # half of sum of the positive scores
     TOTAL_FISH_SCORE_WN = 0  # sum with negative scores
@@ -42,11 +43,19 @@ class IDSAgent(MinimaxAgent):
         self.EXPLORED_SET = {}
         # Timer functionality
         self.time_start = 0.
+        #print("IDS AGENT Created" * 100)
 
     def heuristic(self, node: Node) -> float:
         our_hook_pos, opp_hook_pos = node.state.hook_positions.values()
         our_score, opp_score = node.state.player_scores.values()
         fishes_count = len(node.state.fish_positions)
+
+        # Add the caught fish to the scores
+        if node.state.player_caught[0] != -1:
+            our_score += node.state.fish_scores[node.state.player_caught[0]]
+        if node.state.player_caught[1] != -1:
+            opp_score += node.state.fish_scores[node.state.player_caught[1]]
+
 
         # Check if state is a terminating one
         if fishes_count == 0:
@@ -60,8 +69,8 @@ class IDSAgent(MinimaxAgent):
             return +math.inf
 
         return sum([
-            #   - encourage winning
-            (our_score - opp_score) * 10,
+            #   - encourage winning, prefer preventing the enemy from getting points
+            (our_score - 100 * opp_score) * 10,
             #   - discourage collisions
             # point_distance_l1(MinimaxModel.INITIAL_HOOK_POSITION, hook_pos) * 1,
             #   - encourage positions in the vicinity of closest fish
@@ -76,12 +85,14 @@ class IDSAgent(MinimaxAgent):
         if time.time() - self.time_start > self.HP.TIMEOUT_DURATION:
             raise TimeoutError
         # 1. Repeated states checking
-        if node_repr is None:
-            node_repr = get_node_repr(node=node)
-            if node_repr in self.EXPLORED_SET:
-                return self.EXPLORED_SET[node_repr]
+        if IDSAgent.CHECK_REPEATED_STATES:
+            if node_repr is None:
+                node_repr = get_node_repr(node=node)
+                if node_repr in self.EXPLORED_SET:
+                    return self.EXPLORED_SET[node_repr]
         # 2. Get all children (plus Move Reordering)
-        children: List[Node] = sorted(node.compute_and_get_children(), key=self.heuristic, reverse=True)
+        #children: List[Node] = sorted(node.compute_and_get_children(), key=self.heuristic, reverse=True)
+        children: List[Node] = node.compute_and_get_children()
         # 3. Check if reached leaf nodes or max depth
         if len(children) == 0 or depth == 0:
             return node.move, self.heuristic(node=node)
@@ -129,6 +140,7 @@ class IDSAgent(MinimaxAgent):
             argmax = 0
             max_value = -math.inf
             children_values = []
+            children = sorted(children, key=self.heuristic, reverse=True)
             for i, child in enumerate(children):
                 m, v = self.minimax(node=child, player=1, alpha=alpha, beta=beta, depth=depth - 1)
                 children_values.append(v)
@@ -138,8 +150,8 @@ class IDSAgent(MinimaxAgent):
                 alpha = max(alpha, max_value)
                 if beta <= alpha:
                     break
-            if depth == 8:
-                print(children_values)
+            #if depth == 8:
+                #print(children_values)
             # Store node in the explored set (Graph Version)
             self.EXPLORED_SET[node_repr] = (children[argmax].move, max_value)
             # IDS_VALUES[node_repr] = max_value
@@ -148,6 +160,7 @@ class IDSAgent(MinimaxAgent):
         else:
             argmin = 0
             min_value = math.inf
+            children = sorted(children, key=self.heuristic, reverse=False)
             for i, child in enumerate(children):
                 m, v = self.minimax(node=child, player=0, alpha=alpha, beta=beta, depth=depth - 1)
                 #   - find min value of children (rational opponent)
@@ -174,7 +187,8 @@ class IDSAgent(MinimaxAgent):
         final_mm_move = 0
         # old_mm_value = -math.inf
         d = 0
-        for d in range(self.HP.MAX_DEPTH):
+        for d in range(1, self.HP.MAX_DEPTH, 1):
+            print("Checking depth " , d , file=stderr)
             self.EXPLORED_SET[root_node_repr] = (0, -math.inf)
             try:
                 final_mm_move, _ = self.minimax(node=initial_node, player=0, depth=d, alpha=-math.inf, beta=math.inf,
@@ -183,8 +197,8 @@ class IDSAgent(MinimaxAgent):
                 #     final_mm_move = mm_move
                 #     old_mm_value = mm_value
             except:
+                print("Maximum depth reached " , d - 1, file=stderr)
                 break
-        print(f'\t> Reached depth: {d}')
         if final_mm_move is None:
             print('\t> None --> 0', file=stderr)
             final_mm_move = 0
@@ -199,5 +213,5 @@ class IDSAgent(MinimaxAgent):
         # else:
         #     MOVES_STILL += 1
         # OPPOSITE_OF_PREVIOUS_MOVE = OPPOSITE_OF_MOVE[final_mm_move]
-        print(f'---> MOVE = {ACTION_TO_STR[final_mm_move]}', file=stderr)
+        #print(f'---> MOVE = {ACTION_TO_STR[final_mm_move]}', file=stderr)
         return final_mm_move, 0.

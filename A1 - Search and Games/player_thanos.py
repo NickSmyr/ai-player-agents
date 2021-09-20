@@ -11,17 +11,17 @@ from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 # from minimax.naive import NaiveAgent
 from minimax_thanos.ids import IDSAgent
-from minimax_thanos.utils import MinimaxAgentHParams as HParams
+from minimax_thanos.utils import MinimaxAgentHParams
 
 MAX_DEPTH = 3
 MAX_DEPTH_PRUNING = 7
-MAX_DEPTH_IDS = 9
+MAX_DEPTH_IDS = 99999
 RS_COUNT = 0
 EXPLORED_SET = {}
 IDS_VALUES = {}  # serial saving
 INITIAL_NODE_REPR = None
 TIME_START = 0.
-TIME_THRESHOLD = 60 * 1e-3
+TIME_THRESHOLD = 50 * 1e-3
 
 MOVES_STILL = 0
 MOVES_STILL_THRESHOLD = 10
@@ -403,9 +403,9 @@ class PlayerControllerMinimax(PlayerController):
         # return ABAgent(initial_data, hparams=HParams({
         #     'MAX_DEPTH': 6,
         # }))
-        return IDSAgent(initial_data, hparams=HParams({
-            'MAX_DEPTH': 9,
-            'TIMEOUT_DURATION': 60 * 1e-3,
+        return IDSAgent(initial_data, hparams=MinimaxAgentHParams({
+            'MAX_DEPTH': MAX_DEPTH_IDS,
+            'TIMEOUT_DURATION': TIME_THRESHOLD,
         }))
 
     def search_best_next_move2(self, model, initial_tree_node):
@@ -490,4 +490,5 @@ class PlayerControllerMinimax(PlayerController):
             MOVES_STILL += 1
         OPPOSITE_OF_PREVIOUS_MOVE = OPPOSITE_OF_MOVE[final_mm_move]
         print(f'---> MOVE = {ACTION_TO_STR[final_mm_move]}', file=stderr)
+        self.sender({"action": final_mm_move, "search_time": None})
         return ACTION_TO_STR[final_mm_move]
