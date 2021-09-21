@@ -68,14 +68,19 @@ class IDSAgent(MinimaxAgent):
         if our_score > self.TOTAL_FISH_SCORE_HALF:
             return +math.inf
 
+        # TODO Encourage blocking the opponent from getting closer to a fish
+
         return sum([
             #   - encourage winning, prefer preventing the enemy from getting points
-            (our_score - 100 * opp_score) * 10,
+            (our_score -  opp_score) * 10,
             #   - discourage collisions
             # point_distance_l1(MinimaxModel.INITIAL_HOOK_POSITION, hook_pos) * 1,
             #   - encourage positions in the vicinity of closest fish
             -min([point_distance_l1(our_hook_pos, fp) - 2 * node.state.fish_scores[fi]
                   for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 2,
+            # Prefer to increase distance or prevent decrease of opponent's distance
+            #0 * +min([point_distance_l1(opp_hook_pos, fp) - 2 * node.state.fish_scores[fi]
+                  #for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 2,
             # 2 * random.random(),
         ])
 
@@ -188,11 +193,13 @@ class IDSAgent(MinimaxAgent):
         # old_mm_value = -math.inf
         d = 0
         for d in range(1, self.HP.MAX_DEPTH, 1):
-            print("Checking depth " , d , file=stderr)
             self.EXPLORED_SET[root_node_repr] = (0, -math.inf)
             try:
-                final_mm_move, _ = self.minimax(node=initial_node, player=0, depth=d, alpha=-math.inf, beta=math.inf,
+                final_mm_move, val = self.minimax(node=initial_node, player=0, depth=d, alpha=-math.inf, beta=math.inf,
                                                 node_repr=root_node_repr)
+                print(f"Depth {d} finished with optimal move {ACTION_TO_STR[final_mm_move]} and value {val}", d, file=stderr)
+                if val == math.inf:
+                    return final_mm_move, math.inf
                 # if mm_value > old_mm_value:
                 #     final_mm_move = mm_move
                 #     old_mm_value = mm_value

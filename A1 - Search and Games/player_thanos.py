@@ -21,7 +21,7 @@ EXPLORED_SET = {}
 IDS_VALUES = {}  # serial saving
 INITIAL_NODE_REPR = None
 TIME_START = 0.
-TIME_THRESHOLD = 50 * 1e-3
+TIME_THRESHOLD = 60 * 1e-3
 
 MOVES_STILL = 0
 MOVES_STILL_THRESHOLD = 10
@@ -61,6 +61,7 @@ def point_distance_l1(point1: tuple, point2: tuple, obstacle: tuple = None, scor
 
 def heuristic(node: Node) -> float:
     """
+    TODO remove this, its copy paste from another solution
     Heuristic function to compute the value at any given node/state.
     :param Node node: a graph node as game_tree.Node object
     :return: the heuristic value as a float
@@ -412,6 +413,7 @@ class PlayerControllerMinimax(PlayerController):
         return ACTION_TO_STR[model.get_next_move(initial_tree_node)[0]]
 
     def initialize_model(self, initial_data):
+        # TODO remove duplicate code
         """
         Initialize your minimax model 
         :param initial_data: Game data for initializing minimax model
@@ -442,6 +444,7 @@ class PlayerControllerMinimax(PlayerController):
 
     # noinspection PyMethodMayBeStatic
     def search_best_next_move(self, model, initial_tree_node):
+        # TODO remove unused code
         """
         Use your minimax model to find best possible next move for player 0 (green boat)
         :param model: Minimax model
