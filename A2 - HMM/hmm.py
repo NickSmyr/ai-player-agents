@@ -1,4 +1,4 @@
-from images.matrix_utils import Matrix2d, Vector
+from hmm_utils import Matrix2d, Vector
 
 
 class HMM:
