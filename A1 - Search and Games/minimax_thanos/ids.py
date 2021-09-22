@@ -17,7 +17,7 @@ class IDSAgent(MinimaxAgent):
     ❌  Reuse of results for reordering
     ❌  Add checks for 1 fish in heuristic
     """
-    CHECK_REPEATED_STATES = False
+    CHECK_REPEATED_STATES = True
     TOTAL_FISH_SCORE = 0  # sum of the positive scores
     TOTAL_FISH_SCORE_HALF = 0  # half of sum of the positive scores
     TOTAL_FISH_SCORE_WN = 0  # sum with negative scores
@@ -193,6 +193,8 @@ class IDSAgent(MinimaxAgent):
         # old_mm_value = -math.inf
         d = 0
         for d in range(1, self.HP.MAX_DEPTH, 1):
+            # Reset the explored set
+            self.EXPLORED_SET = {}
             self.EXPLORED_SET[root_node_repr] = (0, -math.inf)
             try:
                 final_mm_move, val = self.minimax(node=initial_node, player=0, depth=d, alpha=-math.inf, beta=math.inf,
