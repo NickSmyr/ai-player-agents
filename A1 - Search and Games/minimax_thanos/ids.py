@@ -17,7 +17,7 @@ class IDSAgent(MinimaxAgent):
     ❌  Reuse of results for reordering
     ❌  Add checks for 1 fish in heuristic
     """
-    CHECK_REPEATED_STATES = False
+    CHECK_REPEATED_STATES = True
     TOTAL_FISH_SCORE = 0  # sum of the positive scores
     TOTAL_FISH_SCORE_HALF = 0  # half of sum of the positive scores
     TOTAL_FISH_SCORE_WN = 0  # sum with negative scores
@@ -94,7 +94,9 @@ class IDSAgent(MinimaxAgent):
             if node_repr is None:
                 node_repr = get_node_repr(node=node)
                 if node_repr in self.EXPLORED_SET:
-                    return self.EXPLORED_SET[node_repr]
+                    move, value, depth_found = self.EXPLORED_SET[node_repr]
+                    if node.depth >= depth_found:
+                        return self.EXPLORED_SET[node_repr][:2]
         # 2. Get all children (plus Move Reordering)
         #children: List[Node] = sorted(node.compute_and_get_children(), key=self.heuristic, reverse=True)
         children: List[Node] = node.compute_and_get_children()
@@ -158,7 +160,7 @@ class IDSAgent(MinimaxAgent):
             #if depth == 8:
                 #print(children_values)
             # Store node in the explored set (Graph Version)
-            self.EXPLORED_SET[node_repr] = (children[argmax].move, max_value)
+            self.EXPLORED_SET[node_repr] = (children[argmax].move, max_value, node.depth)
             # IDS_VALUES[node_repr] = max_value
             return children[argmax].move, max_value
         # 4.2. MIN player
@@ -176,12 +178,14 @@ class IDSAgent(MinimaxAgent):
                 if beta <= alpha:
                     break
             # Store node in the explored set (Graph Version)
-            self.EXPLORED_SET[node_repr] = (children[argmin].move, min_value)
+            self.EXPLORED_SET[node_repr] = (children[argmin].move, min_value, node.depth)
             # IDS_VALUES[node_repr] = min_value
             return children[argmin].move, min_value
 
     # noinspection PyBroadException
     def get_next_move(self, initial_node: Node) -> Tuple[int, float]:
+        if initial_node.state.player_caught[0] != -1:
+            return 1, math.inf
         # Record starting time
         self.time_start = time.time()
         # Record initial hook position
@@ -193,7 +197,10 @@ class IDSAgent(MinimaxAgent):
         # old_mm_value = -math.inf
         d = 0
         for d in range(1, self.HP.MAX_DEPTH, 1):
-            self.EXPLORED_SET[root_node_repr] = (0, -math.inf)
+            # Reset the explored set
+            #self.EXPLORED_SET = {}
+            self.EXPLORED_SET = {root_node_repr: (0, -math.inf, 0)}
+            #self.EXPLORED_SET[root_node_repr] = (0, -math.inf)
             try:
                 final_mm_move, val = self.minimax(node=initial_node, player=0, depth=d, alpha=-math.inf, beta=math.inf,
                                                 node_repr=root_node_repr)

@@ -15,7 +15,7 @@ from minimax_thanos.utils import MinimaxAgentHParams
 
 MAX_DEPTH = 3
 MAX_DEPTH_PRUNING = 7
-MAX_DEPTH_IDS = 99999
+MAX_DEPTH_IDS = 9999
 RS_COUNT = 0
 EXPLORED_SET = {}
 IDS_VALUES = {}  # serial saving
