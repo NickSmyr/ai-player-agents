@@ -1,3 +1,5 @@
+# from sys import stderr
+
 from hmm_utils import Matrix2d, Vector
 
 
@@ -6,12 +8,9 @@ class HMM:
     def __init__(self, N: int, K: int):
         # Random intialization
         # TODO: better initialization than uniform
-        self.A = Matrix2d.random(N, N)
-        self.A.normalize_rows()
-        self.B = Matrix2d.random(N, K)
-        self.B.normalize_rows()
-        self.pi = Vector.random(N)
-        self.pi.normalize()
+        self.A = Matrix2d.random(N, N, row_stochastic=True)
+        self.B = Matrix2d.random(N, K, row_stochastic=True)
+        self.pi = Vector.random(N, normalize=True)
 
         # ------------------------------------
         # Shape Tests:
@@ -24,18 +23,31 @@ class HMM:
         # All passed.
         # ------------------------------------
 
-    def alpha_pass(self, Ot: list) -> float:
+    def alpha_pass(self, observations: list) -> float:
         """
         Perform a forward pass echoing the probability of an observation sequence.
-        :param list Ot: {Ot} for t=1...T, where Ot in {0, ..., K}
-        :return: a float object
+        :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
+        :return: a float object containing the (marginalized) probability that the HMM emitted the given observations
         """
         # Initialize alpha
-        alpha = self.pi @ self.B.get_col(Ot[0])
-        print(alpha)
+        # t1 = float(timeit.timeit(lambda: self.pi.hadamard(self.B.get_col(observations[0])), number=1000000)) / 1000000
+        # t2 = float(timeit.timeit(lambda: self.pi.hadamard(self.B.T.data[observations[0]]), number=1000000)) / 1000000
+        # print(t1, t2)  # -> pretty much identical times
+        alpha = self.pi.hadamard(self.B.get_col(observations[0]))
+        # print(alpha, alpha.sum(), file=stderr)
         # Perform alpha-pass iterations
-        # TODO
-        return alpha
+        for t in range(1, len(observations)):
+            alpha = (self.A.T @ alpha).hadamard(self.B.get_col(observations[t]))
+            # print(alpha, alpha.sum(), file=stderr)
+        return alpha.sum()
+
+    def delta_pass(self, observations: list) -> list:
+        """
+        Perform a backward pass echoing the most probable state sequence for the given observation sequence.
+        :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
+        :return:
+        """
+        raise NotImplementedError
 
 
 if __name__ == '__main__':
