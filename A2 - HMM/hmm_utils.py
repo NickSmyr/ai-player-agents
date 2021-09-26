@@ -85,6 +85,22 @@ class Vector(TNList):
         #     result[i] = self.data[i] * v2_data[i]
         return Vector([d * v2d for d, v2d in zip(self.data, v2.data)])
 
+    def outer(self, v2: 'Vector') -> 'Matrix2d':
+        """
+        Given vectors:
+            a = (a1, a2, ..., an),
+            b = (b1, b2, ..., bm)
+        Returns a matrix of shape NxM
+            A = [ a1b1, a1b2, ..., a1bm,
+                  .                  .
+                  .         .        .
+                  .                  .
+                  anb1, anb2, ..., anbm]
+        :param Vector v2: the second operand
+        :return: a new Matrix2d instance of shape NxM
+        """
+        return Matrix2d([[v1i * v2j for v2j in v2.data] for v1i in self.data])
+
     @staticmethod
     def random(n: int, normalize: bool = False) -> 'Vector':
         """
@@ -227,34 +243,35 @@ def outer_product(a: Vector, b: Vector) -> Matrix2d:
 
 
 if __name__ == '__main__':
-    _v1 = Vector([1, 1, 1, 1])
-    _v2 = Vector([0, 2, 0, 1])
-    print(_v1 @ _v2)
-    print(_v1.hadamard(_v2))
-    print(_v2 * 2)
+    # _v1 = Vector([1, 1, 1, 1])
+    # _v2 = Vector([0, 2, 0, 1])
+    # print(_v1 @ _v2)
+    # print(_v1.hadamard(_v2))
+    # print(_v2 * 2)
+    #
+    # _m1 = Matrix2d([
+    #     [1, 0, 0, 0],
+    #     [0, 1, 0, 0],
+    #     [0, 0, 1, 0],
+    #     [0, 0, 0, 1],
+    # ])
+    # _m2 = Matrix2d([
+    #     [1, 2, 0, 0],
+    #     [0, 1, 2, 0],
+    #     [1, -0.9, 1, 2],
+    #     [0.01, 1, 0, 1],
+    # ])
+    # print(_m1.hadamard(_m2))
+    # print(_m1 @ _m2)
 
-    _m1 = Matrix2d([
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1],
-    ])
-    _m2 = Matrix2d([
-        [1, 2, 0, 0],
-        [0, 1, 2, 0],
-        [1, -0.9, 1, 2],
-        [0.01, 1, 0, 1],
-    ])
-    print(_m1.hadamard(_m2))
-    print(_m1 @ _m2)
-
-    a = Vector([1., 2., 3.])
-    b = Vector([1., 10., 100.])
-    c = outer_product(a, b)
-    true = [[1, 10, 100],
-            [2, 20, 200],
-            [3, 30, 300]
-            ]
-    for i in range(3):
-        for j in range(3):
-            assert c[i][j] == true[i][j]
+    _a = Vector([1., 2., 3.])
+    _b = Vector([1., 10., 100.])
+    # c = outer_product(a, b)
+    _c = _a.outer(_b)
+    _true = [[1, 10, 100],
+             [2, 20, 200],
+             [3, 30, 300]]
+    for _i in range(3):
+        for _j in range(3):
+            assert _c[_i][_j] == _true[_i][_j]
+    print('PASSed')

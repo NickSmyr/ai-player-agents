@@ -1,5 +1,7 @@
 import abc
+import fileinput
 import random
+from itertools import chain
 from typing import Tuple
 
 
@@ -185,7 +187,7 @@ class Matrix2d(TNList):
     #     return Vector([l[li][0] for li in range(len(l))]) if ncols == 1 else Matrix2d(l)
     def apply_func(self, f):
         """
-        Apply a function to each matrix elemetn
+        Apply a function to each matrix element.
         """
         new_data = [[f(col) for col in row] for row in self.data]
         return Matrix2d(new_data)
@@ -212,13 +214,7 @@ def outer_product(a: Vector, b: Vector) -> Matrix2d:
     return Matrix2d(data)
 
 
-import fileinput
-from itertools import chain
-from typing import Tuple
-
-
-
-def parse_matrix_2d(data_list : list, shape : list):
+def parse_matrix_2d(data_list: list, shape: list):
     rows = int(shape[0])
     columns = int(shape[1])
     data = [float(x) for x in data_list]
@@ -233,7 +229,6 @@ def parse_matrix_2d(data_list : list, shape : list):
         return Vector(data)
 
 
-
 def main():
     inp = iter(fileinput.input())
     transition_matrix_d = [float(x) for x in next(inp).rstrip().split(" ")]
@@ -245,6 +240,7 @@ def main():
 
     output = emission_matrix.T @ (transition_matrix.T @ initial_p)
     print(" ".join([str(x) for x in chain([1, output.shape[0]], output)]))
+
 
 if __name__ == '__main__':
     main()
