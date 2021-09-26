@@ -2,7 +2,7 @@ import math
 from typing import Tuple, Optional, List
 
 from fishing_game_core.game_tree import Node
-from minimax_thanos.utils import MinimaxAgent, MinimaxAgentHParams, point_distance_l1, get_node_repr
+from our_minimax.utils import MinimaxAgent, MinimaxAgentHParams, point_distance_l1, get_node_repr
 
 
 class ABAgent(MinimaxAgent):

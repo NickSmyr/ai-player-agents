@@ -1,7 +1,7 @@
 from typing import Tuple, Optional, List
 
 from fishing_game_core.game_tree import Node
-from minimax_thanos.utils import MinimaxAgent, MinimaxAgentHParams, point_distance_l1
+from our_minimax.utils import MinimaxAgent, MinimaxAgentHParams, point_distance_l1
 
 
 class NaiveAgent(MinimaxAgent):

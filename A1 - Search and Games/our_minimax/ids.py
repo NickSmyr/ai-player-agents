@@ -5,7 +5,7 @@ from typing import Tuple, Optional, List
 
 from fishing_game_core.game_tree import Node
 from fishing_game_core.shared import ACTION_TO_STR
-from minimax_thanos.utils import MinimaxAgent, MinimaxAgentHParams, point_distance_l1, get_node_repr, diff_x
+from our_minimax.utils import MinimaxAgent, MinimaxAgentHParams, point_distance_l1, get_node_repr, diff_x
 
 
 class IDSAgent(MinimaxAgent):
@@ -43,7 +43,7 @@ class IDSAgent(MinimaxAgent):
         self.EXPLORED_SET = {}
         # Timer functionality
         self.time_start = 0.
-        #print("IDS AGENT Created" * 100)
+        # print("IDS AGENT Created" * 100)
 
     def heuristic(self, node: Node) -> float:
         our_hook_pos, opp_hook_pos = node.state.hook_positions.values()
@@ -55,7 +55,6 @@ class IDSAgent(MinimaxAgent):
             our_score += node.state.fish_scores[node.state.player_caught[0]]
         if node.state.player_caught[1] != -1:
             opp_score += node.state.fish_scores[node.state.player_caught[1]]
-
 
         # Check if state is a terminating one
         if fishes_count == 0:
@@ -72,15 +71,15 @@ class IDSAgent(MinimaxAgent):
 
         return sum([
             #   - encourage winning, prefer preventing the enemy from getting points
-            (our_score -  opp_score) * 10,
+            (our_score - opp_score) * 10,
             #   - discourage collisions
             # point_distance_l1(MinimaxModel.INITIAL_HOOK_POSITION, hook_pos) * 1,
             #   - encourage positions in the vicinity of closest fish
             -min([point_distance_l1(our_hook_pos, fp) - 2 * node.state.fish_scores[fi]
                   for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 2,
             # Prefer to increase distance or prevent decrease of opponent's distance
-            #0 * +min([point_distance_l1(opp_hook_pos, fp) - 2 * node.state.fish_scores[fi]
-                  #for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 2,
+            # 0 * +min([point_distance_l1(opp_hook_pos, fp) - 2 * node.state.fish_scores[fi]
+            # for fi, fp in node.state.fish_positions.items()] if len(node.state.fish_positions) else [0, ]) * 2,
             # 2 * random.random(),
         ])
 
@@ -98,7 +97,7 @@ class IDSAgent(MinimaxAgent):
                     if node.depth >= depth_found:
                         return self.EXPLORED_SET[node_repr][:2]
         # 2. Get all children (plus Move Reordering)
-        #children: List[Node] = sorted(node.compute_and_get_children(), key=self.heuristic, reverse=True)
+        # children: List[Node] = sorted(node.compute_and_get_children(), key=self.heuristic, reverse=True)
         children: List[Node] = node.compute_and_get_children()
         # 3. Check if reached leaf nodes or max depth
         if len(children) == 0 or depth == 0:
@@ -157,8 +156,8 @@ class IDSAgent(MinimaxAgent):
                 alpha = max(alpha, max_value)
                 if beta <= alpha:
                     break
-            #if depth == 8:
-                #print(children_values)
+            # if depth == 8:
+            # print(children_values)
             # Store node in the explored set (Graph Version)
             self.EXPLORED_SET[node_repr] = (children[argmax].move, max_value, node.depth)
             # IDS_VALUES[node_repr] = max_value
@@ -195,23 +194,23 @@ class IDSAgent(MinimaxAgent):
         # Run Minimax at incrementing depth and return best move
         final_mm_move = 0
         # old_mm_value = -math.inf
-        d = 0
         for d in range(1, self.HP.MAX_DEPTH, 1):
             # Reset the explored set
-            #self.EXPLORED_SET = {}
+            # self.EXPLORED_SET = {}
             self.EXPLORED_SET = {root_node_repr: (0, -math.inf, 0)}
-            #self.EXPLORED_SET[root_node_repr] = (0, -math.inf)
+            # self.EXPLORED_SET[root_node_repr] = (0, -math.inf)
             try:
                 final_mm_move, val = self.minimax(node=initial_node, player=0, depth=d, alpha=-math.inf, beta=math.inf,
-                                                node_repr=root_node_repr)
-                print(f"Depth {d} finished with optimal move {ACTION_TO_STR[final_mm_move]} and value {val}", d, file=stderr)
+                                                  node_repr=root_node_repr)
+                print(f"Depth {d} finished with optimal move {ACTION_TO_STR[final_mm_move]} and value {val}", d,
+                      file=stderr)
                 if val == math.inf:
                     return final_mm_move, math.inf
                 # if mm_value > old_mm_value:
                 #     final_mm_move = mm_move
                 #     old_mm_value = mm_value
             except:
-                print("Maximum depth reached " , d - 1, file=stderr)
+                print("Maximum depth reached ", d - 1, file=stderr)
                 break
         if final_mm_move is None:
             print('\t> None --> 0', file=stderr)
@@ -227,5 +226,5 @@ class IDSAgent(MinimaxAgent):
         # else:
         #     MOVES_STILL += 1
         # OPPOSITE_OF_PREVIOUS_MOVE = OPPOSITE_OF_MOVE[final_mm_move]
-        #print(f'---> MOVE = {ACTION_TO_STR[final_mm_move]}', file=stderr)
+        # print(f'---> MOVE = {ACTION_TO_STR[final_mm_move]}', file=stderr)
         return final_mm_move, 0.

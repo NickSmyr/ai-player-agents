@@ -9,6 +9,7 @@ class MinimaxAgentHParams:
     MAX_DEPTH = 3
     PLAYER_SCORE_MULTIPLIER = 10
     TIMEOUT_DURATION = 60 * 1e-3
+    CHECK_REPEATED_STATES = True
 
     def __init__(self, hparams: dict):
         """
@@ -45,6 +46,7 @@ class MinimaxAgent(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def get_next_move(self, initial_node: Node) -> Tuple[int, float]:
         """
         Compute and return best next move using Minimax.
@@ -75,7 +77,8 @@ def get_node_repr(node: Node) -> str:
     :param Node node: a game tree node
     :return: a node representation as a str object
     """
-    return f'p{node.state.player}hp{node.state.hook_positions}fp{node.state.fish_positions}'
+    state = node.state
+    return f'p{state.player}ps{state.player_scores}hp{state.hook_positions}fp{state.fish_positions}'
 
 
 def holding_fish(initial_tree_node: Node) -> bool:
@@ -87,15 +90,12 @@ def holding_fish(initial_tree_node: Node) -> bool:
     return initial_tree_node.state.player_caught[0] != -1
 
 
-def point_distance_l1(point1: tuple, point2: tuple, obstacle: tuple = None, score: int = 0) -> float:
+def point_distance_l1(hook_pos: tuple, fish_pos: tuple) -> float:
     """
     Distance between two 2-d points using the Manhattan distance.
-    :param tuple point1: (x,y) coordinates of first point
-    :param tuple point2: (x,y) coordinates of first point
-    :param tuple obstacle: (x,y) coordinates of obstacle point (i.e. the opponent's boat)
-    :param int score: fish score
+    :param tuple hook_pos: (x,y) coordinates of first point
+    :param tuple fish_pos: (x,y) coordinates of first point
     :return: distance as a float object
     """
-    dist = abs(point1[0] - point2[0]) + abs(point1[1] - point2[1])
-    # print(point1, point2, dist)
-    return dist - score
+    return min(abs(hook_pos[0] - fish_pos[0]), abs(hook_pos[0] - 20 + fish_pos[0])) + \
+        abs(hook_pos[1] - fish_pos[1]) + 20 - fish_pos[1]

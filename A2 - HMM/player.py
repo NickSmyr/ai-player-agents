@@ -25,7 +25,6 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         """
         # This code would make a random guess on each step:
         return step % N_FISH, random.randint(0, N_SPECIES - 1)
-        # return None
 
     def reveal(self, correct, fish_id, true_type):
         """

@@ -1,5 +1,4 @@
 # from sys import stderr
-from collections import defaultdict
 from typing import List, Tuple
 
 from hmm_utils import Matrix2d, Vector, outer_product
@@ -17,6 +16,7 @@ class HMM:
         self.B = Matrix2d.random(N, K, row_stochastic=True)
         self.pi = Vector.random(N, normalize=True)
 
+        self.A_transposed = self.A.T
 
         # ------------------------------------
         # Shape Tests:
@@ -38,16 +38,13 @@ class HMM:
         :return: a float object containing the (marginalized) probability that the HMM emitted the given observations
         """
         # Initialize alpha
-        # t1 = float(timeit.timeit(lambda: self.pi.hadamard(self.B.get_col(observations[0])), number=1000000)) / 1000000
-        # t2 = float(timeit.timeit(lambda: self.pi.hadamard(self.B.T.data[observations[0]]), number=1000000)) / 1000000
-        # print(t1, t2)  # -> pretty much identical times
         alpha = self.pi.hadamard(self.B.get_col(observations[0]))
         # Store alphas in memory
         alphas = [alpha]
         # print(alpha, alpha.sum(), file=stderr)
         # Perform alpha-pass iterations
         for t in range(1, len(observations)):
-            alpha = (self.A.T @ alpha).hadamard(self.B.get_col(observations[t]))
+            alpha = (self.A_transposed @ alpha).hadamard(self.B.get_col(observations[t]))
             alphas.append(alpha)
             # print(alpha, alpha.sum(), file=stderr)
         # Return likelihood (sum of last alpha vec)

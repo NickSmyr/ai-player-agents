@@ -32,11 +32,17 @@ class TNList(list, metaclass=abc.ABCMeta):
 
 class Vector(TNList):
     """
-    Assumed to be a column vector.
+    Vector Class:
+    Our implementation of 1-d vectors. These are assumed to be COLUMN vectors.
     """
 
     def __init__(self, data: list):
+        # Cast elements to float if not already casted
+        if type(data[0]) == int:
+            data = [float(d) for d in data]
+        # Assert input is a 1-d list
         assert type(data[0]) == float, f'Input not a float vector (type of data[0]={type(data[0])})'
+        # Initialize wrapper
         TNList.__init__(self, data=data)
         self.n = len(self.data)
 
@@ -51,6 +57,18 @@ class Vector(TNList):
     def sum(self):
         return sum(self.data)
 
+    def __mul__(self, scalar: float) -> 'Vector':
+        """
+        Perform vector-scalar multiplication (scaling) and return self pointer.
+        :param float scalar: the multiplier
+        :return: self instance having first been scaled by the given scalar
+        """
+        self.data = [d * scalar for d in self.data]
+        return self
+
+    def __rmul__(self, scalar):
+        return self.__mul__(scalar)
+
     def __matmul__(self, v2: 'Vector') -> float:
         """
         Perform dot product between self and v2.
@@ -61,11 +79,11 @@ class Vector(TNList):
         return sum([self.data[i] * v2.data[i] for i in range(self.n)])
 
     def hadamard(self, v2: 'Vector' or list) -> 'Vector':
-        result = [0.] * self.n
-        v2_data = v2.data if type(v2) == Vector else v2
-        for i in range(self.n):
-            result[i] = self.data[i] * v2_data[i]
-        return Vector(result)
+        # result = [0.] * self.n
+        # v2_data = v2.data if type(v2) == Vector else v2
+        # for i in range(self.n):
+        #     result[i] = self.data[i] * v2_data[i]
+        return Vector([d * v2d for d, v2d in zip(self.data, v2.data)])
 
     @staticmethod
     def random(n: int, normalize: bool = False) -> 'Vector':
@@ -82,8 +100,18 @@ class Vector(TNList):
 
 
 class Matrix2d(TNList):
+    """
+    Matrix2d Class:
+    Our implementation of 2-d matrices.
+    """
+
     def __init__(self, data: list):
+        # Cast elements to float if not already casted
+        if type(data[0][0]) == int:
+            data = [[float(c) for c in r] for r in data]
+        # Assert input is an orthogonal matrix
         assert len(data[1]) == len(data[0]), f'Dims not match len(data[0])={len(data[0])}, len(data[1])={len(data[1])}'
+        # Initialize parent
         TNList.__init__(self, data=data)
         self.data: list
         self.nrows = len(self.data)
@@ -139,32 +167,18 @@ class Matrix2d(TNList):
 
         # Initialize output list
         if type(m2) == Matrix2d:
-            # Perform NAIVE matrix-matrix multiplication
-            # m_result = [[0. for _ in range(m2_cols)] for _ in range(self.nrows)]
-            # for i in range(self.nrows):
-            #     for j in range(m2_cols):
-            #         s = 0
-            #         for k in range(self.ncols):
-            #             s += self.data[i][k] * m2.data[k][j]
-            #         m_result[i][j] = s
-            # return Matrix2d(m_result)
-            return Matrix2d([[sum(i * j for i, j in zip(r, c)) for c in zip(*m2.data)] for r in self.data])
+            return Matrix2d([[sum(ri * cj for ri, cj in zip(r, c)) for c in zip(*m2.data)] for r in self.data])
 
         # Perform NAIVE matrix-vector multiplication
-        # m_result = [0. for _ in range(m2_rows)]
-        # for i in range(self.nrows):
-        #     s = 0
-        #     for j in range(self.ncols):
-        #         s += self.data[i][j] * m2.data[j]
-        #     m_result[i] = s
-        return Vector([sum(i * j for i, j in zip(r, m2.data)) for r in self.data])
+        return Vector([sum(ri * rj for ri, rj in zip(r, m2.data)) for r in self.data])
 
     def hadamard(self, m2: 'Matrix2d') -> 'Matrix2d':
-        m_result = [[0. for _ in range(self.ncols)] for _ in range(self.nrows)]
-        for i in range(self.nrows):
-            for j in range(self.ncols):
-                m_result[i][j] = self.data[i][j] * m2.data[i][j]
-        return Matrix2d(m_result)
+        """
+        Perform element-wise (aka Hadamard) matrix multiplication.
+        :param Matrix2d m2: second operand as a Matrix2d instance.
+        :return: a new Matrix2d instance of the same dims with the result of element-wise matrix multiplication.
+        """
+        return Matrix2d([[drc * m2drc for drc, m2drc in zip(dr, m2dr)] for dr, m2dr in zip(self.data, m2.data)])
 
     @staticmethod
     def random(nrows: int, ncols: int, row_stochastic: bool = True) -> 'Matrix2d':
@@ -183,9 +197,9 @@ class Matrix2d(TNList):
     # @staticmethod
     # def from_list(l: list, ncols: int) -> 'Matrix2d' or Vector:
     #     return Vector([l[li][0] for li in range(len(l))]) if ncols == 1 else Matrix2d(l)
-    def apply_func(self, f):
+    def apply_func(self, f) -> 'Matrix2d':
         """
-        Apply a function to each matrix elemetn
+        Apply a function to each matrix element.
         """
         new_data = [[f(col) for col in row] for row in self.data]
         return Matrix2d(new_data)
@@ -213,9 +227,26 @@ def outer_product(a: Vector, b: Vector) -> Matrix2d:
 
 
 if __name__ == '__main__':
-    _v1 = Vector([1., 1., 1., 1.])
-    _v2 = Vector([0., 1., 0., 1.])
-    #print(_v1 @ _v2)
+    _v1 = Vector([1, 1, 1, 1])
+    _v2 = Vector([0, 2, 0, 1])
+    print(_v1 @ _v2)
+    print(_v1.hadamard(_v2))
+    print(_v2 * 2)
+
+    _m1 = Matrix2d([
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+    ])
+    _m2 = Matrix2d([
+        [1, 2, 0, 0],
+        [0, 1, 2, 0],
+        [1, -0.9, 1, 2],
+        [0.01, 1, 0, 1],
+    ])
+    print(_m1.hadamard(_m2))
+    print(_m1 @ _m2)
 
     a = Vector([1., 2., 3.])
     b = Vector([1., 10., 100.])
