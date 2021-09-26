@@ -212,18 +212,39 @@ def outer_product(a: Vector, b: Vector) -> Matrix2d:
     return Matrix2d(data)
 
 
-if __name__ == '__main__':
-    _v1 = Vector([1., 1., 1., 1.])
-    _v2 = Vector([0., 1., 0., 1.])
-    #print(_v1 @ _v2)
+import fileinput
+from itertools import chain
+from typing import Tuple
 
-    a = Vector([1., 2., 3.])
-    b = Vector([1., 10., 100.])
-    c = outer_product(a, b)
-    true = [[1, 10, 100],
-            [2, 20, 200],
-            [3, 30, 300]
-            ]
-    for i in range(3):
-        for j in range(3):
-            assert c[i][j] == true[i][j]
+
+
+def parse_matrix_2d(data_list : list, shape : list):
+    rows = int(shape[0])
+    columns = int(shape[1])
+    data = [float(x) for x in data_list]
+    if rows > 1:
+        new_data = [[0.] * columns for _ in range(rows)]
+        for i in range(rows):
+            for j in range(columns):
+                new_data[i][j] = data[j + columns * i]
+
+        return Matrix2d(new_data)
+    elif rows == 1:
+        return Vector(data)
+
+
+
+def main():
+    inp = iter(fileinput.input())
+    transition_matrix_d = [float(x) for x in next(inp).rstrip().split(" ")]
+    transition_matrix = parse_matrix_2d(transition_matrix_d[2:], transition_matrix_d[:2])
+    emission_matrix_d = [float(x) for x in next(inp).rstrip().split(" ")]
+    emission_matrix = parse_matrix_2d(emission_matrix_d[2:], emission_matrix_d[:2])
+    initial_p = [float(x) for x in next(inp).rstrip().split(" ")]
+    initial_p = parse_matrix_2d(initial_p[2:], initial_p[:2])
+
+    output = emission_matrix.T @ (transition_matrix.T @ initial_p)
+    print(" ".join([str(x) for x in chain([1, output.shape[0]], output)]))
+
+if __name__ == '__main__':
+    main()
