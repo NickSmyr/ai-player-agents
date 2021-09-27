@@ -18,7 +18,7 @@ class TNList(list, metaclass=abc.ABCMeta):
         return self.data.__repr__()
 
     def __str__(self):
-        return self.data.__str__()
+        return self.data.__str__().replace('[', '').replace(']', '').replace(',', '')
 
     def __len__(self):
         return self.data.__len__()
@@ -100,6 +100,17 @@ class Vector(TNList):
         :return: a new Matrix2d instance of shape NxM
         """
         return Matrix2d([[v1i * v2j for v2j in v2.data] for v1i in self.data])
+
+    def __str__(self):
+        return f'1 {self.n} ' + super().__str__()
+
+    @staticmethod
+    def from_str(line: str):
+        line_data = [x for x in line.rstrip().split(" ")]
+        nrows = int(line_data.pop(0))
+        assert nrows == 1
+        n = int(line_data.pop(0))
+        return Vector([float(line_data[j]) for j in range(n)])
 
     @staticmethod
     def random(n: int, normalize: bool = False) -> 'Vector':
@@ -196,6 +207,16 @@ class Matrix2d(TNList):
         """
         return Matrix2d([[drc * m2drc for drc, m2drc in zip(dr, m2dr)] for dr, m2dr in zip(self.data, m2.data)])
 
+    def __str__(self):
+        return f'{self.nrows} {self.ncols} ' + super().__str__()
+
+    @staticmethod
+    def from_str(line: str):
+        line_data = [x for x in line.rstrip().split(" ")]
+        nrows = int(line_data.pop(0))
+        ncols = int(line_data.pop(0))
+        return Matrix2d([[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)])
+
     @staticmethod
     def random(nrows: int, ncols: int, row_stochastic: bool = True) -> 'Matrix2d':
         """
@@ -263,8 +284,10 @@ if __name__ == '__main__':
     # ])
     # print(_m1.hadamard(_m2))
     # print(_m1 @ _m2)
+    # print(_m2)
 
     _a = Vector([1., 2., 3.])
+    # print(_a)
     _b = Vector([1., 10., 100.])
     # c = outer_product(a, b)
     _c = _a.outer(_b)
@@ -275,3 +298,8 @@ if __name__ == '__main__':
         for _j in range(3):
             assert _c[_i][_j] == _true[_i][_j]
     print('PASSed')
+
+    _line = '4 4 0.2 0.5 0.3 0.0 0.1 0.4 0.4 0.1 0.2 0.0 0.4 0.4 0.2 0.3 0.0 0.5'
+    _m = Matrix2d.from_str(_line)
+    assert _line == str(_m)
+    print(_m)
