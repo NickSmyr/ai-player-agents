@@ -55,17 +55,17 @@ class PVSAgent(MinimaxAgent):
             return state.h_value
 
         # Add the caught fish to the scores
-        our_score, opp_score = node.state.player_scores.values()
-        if node.state.player_caught[0] != -1:
-            our_score += node.state.fish_scores[node.state.player_caught[0]]
-        if node.state.player_caught[1] != -1:
-            opp_score += node.state.fish_scores[node.state.player_caught[1]]
+        our_score, opp_score = state.player_scores.values()
+        if state.player_caught[0] != -1:
+            our_score += state.fish_scores[state.player_caught[0]]
+        if state.player_caught[1] != -1:
+            opp_score += state.fish_scores[state.player_caught[1]]
 
         # Unwrap hook position variables
-        our_hook_pos, opp_hook_pos = node.state.hook_positions.values()
+        our_hook_pos, opp_hook_pos = state.hook_positions.values()
 
         # Check if state is a terminating one
-        fishes_count = len(node.state.fish_positions)
+        fishes_count = len(state.fish_positions)
         if fishes_count == 0:
             return_value = (our_score - opp_score) * self.HP.PLAYER_SCORE_MULTIPLIER * 10
 
@@ -82,8 +82,8 @@ class PVSAgent(MinimaxAgent):
             #   - encourage winning, prefer preventing the enemy from getting points
             #   - encourage positions in the vicinity of closest fish
             return_value = (our_score - opp_score) * self.HP.PLAYER_SCORE_MULTIPLIER - \
-                           min([point_distance_l1(our_hook_pos, fp) - 2 * node.state.fish_scores[fi]
-                                for fi, fp in node.state.fish_positions.items()]) * 2
+                           min([point_distance_l1(our_hook_pos, fp) - 2 * state.fish_scores[fi]
+                                for fi, fp in state.fish_positions.items()]) * 2
 
         # Save computed value in node
         node.h_value = return_value
@@ -155,7 +155,15 @@ class PVSAgent(MinimaxAgent):
             children = sorted(children, key=lambda n: n.h_value if hasattr(n, 'h_value') else self.heuristic(n),
                               reverse=True)
             for i, child in enumerate(children):
-                m, v = self.minimax(node=child, player=1, alpha=alpha, beta=alpha + 1, depth=depth - 1)
+                if i == 0:
+                    # Consider first child as the Principal Variation component (i.e. assuming we achieved perfect
+                    # re-ordering)
+                    m, v = self.minimax(node=child, player=1, alpha=alpha, beta=beta, depth=depth - 1)
+                else:
+                    m, v = self.minimax(node=child, player=1, alpha=alpha, beta=alpha + 1, depth=depth - 1)
+                    if alpha < v < beta:
+                        # PVS failed, do a full re-search
+                        m, v = self.minimax(node=child, player=1, alpha=v, beta=beta, depth=depth - 1)
                 if v > max_value:
                     max_value = v
                     argmax = i
@@ -176,7 +184,15 @@ class PVSAgent(MinimaxAgent):
             if len(children) > 2:
                 children = children[:2]
             for i, child in enumerate(children):
-                m, v = self.minimax(node=child, player=0, alpha=alpha, beta=alpha + 1, depth=depth - 1)
+                if i == 0:
+                    # Consider first child as the Principal Variation component (i.e. assuming we achieved perfect
+                    # re-ordering)
+                    m, v = self.minimax(node=child, player=0, alpha=alpha, beta=beta, depth=depth - 1)
+                else:
+                    m, v = self.minimax(node=child, player=0, alpha=alpha, beta=alpha + 1, depth=depth - 1)
+                    if alpha < v < beta:
+                        # PVS failed, do a full re-search
+                        m, v = self.minimax(node=child, player=0, alpha=v, beta=beta, depth=depth - 1)
                 #   - find min value of children (rational opponent)
                 if v < min_value:
                     min_value = v
