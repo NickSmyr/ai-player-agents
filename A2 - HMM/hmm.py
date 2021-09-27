@@ -1,22 +1,23 @@
 # from sys import stderr
-from typing import List, Tuple
+from fileinput import FileInput
+from typing import List, Tuple, Optional
 
 from hmm_utils import Matrix2d, Vector, outer_product
 
 
 class HMM:
 
-    def __init__(self, N: int, K: int):
+    def __init__(self, N: int, K: int, A: Optional[Matrix2d] = None, B: Optional[Matrix2d] = None,
+                 pi: Optional[Vector] = None):
         # Random intialization
         # TODO: better initialization than uniform
+        self.A = Matrix2d.random(N, N, row_stochastic=True) if A is None else A
+        self.B = Matrix2d.random(N, K, row_stochastic=True) if B is None else B
+        self.pi = Vector.random(N, normalize=True) if pi is None else pi
+        self.A_transposed = self.A.T
+
         self.N = N
         self.K = K
-
-        self.A = Matrix2d.random(N, N, row_stochastic=True)
-        self.B = Matrix2d.random(N, K, row_stochastic=True)
-        self.pi = Vector.random(N, normalize=True)
-
-        self.A_transposed = self.A.T
 
         # ------------------------------------
         # Shape Tests:
@@ -58,7 +59,7 @@ class HMM:
         betas = [beta]
         t = T - 2
         while t > -1:
-            beta = (self.A) @ (self.B.get_col(observations[t + 1]).hadamard(beta))
+            beta = self.A @ (self.B.get_col(observations[t + 1]).hadamard(beta))
             betas.append(beta)
             t -= 1
         # beta_{-1} Used only for testing purposes
@@ -85,25 +86,23 @@ class HMM:
         return gammas, digammas
 
     def get_new_parameters(self, observations, gammas, digammas) -> Tuple[List, List, List]:
-        T = len(observations)
         # Calculate new pi
         new_pi = gammas[0]
         # SUM all digammas
         # Calculate new transition matrix (A)
         digammas_sum = [
-            [sum(dcolumn)
-             for dcolumn in zip(*drows)]
+            [sum(dcolumn) for dcolumn in zip(*drows)]
             for drows in zip(*digammas)]
         # Sum all gammas
         gammas_sum = [sum(dcolumn) for dcolumn in zip(*gammas[:-1])]
-        new_A = [ [ col / to_divide for col in row]
-            for row, to_divide in zip(digammas_sum,gammas_sum) ]
+        new_A = [[col / to_divide for col in row]
+                 for row, to_divide in zip(digammas_sum, gammas_sum)]
 
         # Calculate new observation matrix (B)
         # Need a mapping from observation to time steps
 
         # Can this be done with list comprehensions?
-        o2t = [[] for i in range(self.K)]
+        o2t = [[0, ] for _ in range(self.K)]
         for t, o in enumerate(observations):
             o2t[o].append(t)
         # TODO utilize previous calc for the previous sum
@@ -112,13 +111,10 @@ class HMM:
         # New_B is NxK
         # See stamp tutorial for an explanation of notation
         new_B = [
-            [ sum([ gammas_j[t] for t in t_s]) for t_s in o2t]
-                for gamma_sum_j, gammas_j in zip(gammas_sum, zip(*gammas))
+            [sum([gammas_j[t] for t in t_s]) for t_s in o2t]
+            for gamma_sum_j, gammas_j in zip(gammas_sum, zip(*gammas))
         ]
         return new_pi, new_A, new_B
-
-
-
 
     def delta_pass(self, observations: list) -> list:
         """
@@ -128,16 +124,34 @@ class HMM:
         """
         raise NotImplementedError
 
+    @staticmethod
+    def from_input(finput: FileInput) -> 'HMM':
+        """
+        Initialize a new HMM instance using input provided in the form of Kattis text files.
+        :param FileInput finput: a FileInput instance instantiated from stdin (e.g. by running python file using input
+                                 redirect from a *.in file)
+        :return: an HMM instance
+        """
+        A, B, pi, N, K = None, None, None, None, None
+        for i, line in enumerate(finput):
+            if i == 0:
+                A = Matrix2d.from_str(line)
+            elif i == 1:
+                B = Matrix2d.from_str(line)
+                N, K = B.shape
+            else:
+                pi = Vector.from_str(line)
+        return HMM(N=N, K=K, A=A, B=B, pi=pi)
+
 
 if __name__ == '__main__':
-    hmm = HMM(N=4, K=3)
-    observations = [0, 1, 2, 1]
+    _hmm = HMM(N=4, K=3)
+    _observations = [0, 1, 2, 1]
     # Likelihood
-    ll_a, _ = hmm.alpha_pass(observations)
-    ll_b, _ = hmm.beta_pass(observations)
+    _ll_a, _ = _hmm.alpha_pass(_observations)
+    _ll_b, _ = _hmm.beta_pass(_observations)
     # Approximate equality
-    assert abs(ll_a - ll_b) < 1e-3, "Likelihoods don't match"
+    assert abs(_ll_a - _ll_b) < 1e-3, "Likelihoods don't match"
 
-    gammas, digammas = hmm.gamma_pass(observations)
-    hmm.get_new_parameters(observations, gammas, digammas)
-
+    _gammas, _digammas = _hmm.gamma_pass(_observations)
+    _hmm.get_new_parameters(_observations, _gammas, _digammas)

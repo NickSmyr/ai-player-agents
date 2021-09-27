@@ -128,6 +128,18 @@ class PVSAgent(MinimaxAgent):
             invalid_moves.add(1)
 
         # 3.3. Remove left/right move if not valid
+        # Based on the outputs of diff_x:
+        #      dist, min_idx, right_idx = diff_x(our_hook, opp_hook)
+        # where if dist==1, then we forbid the move based on the following table.
+        #  ___________________________________________________
+        # |  min_idx  |  right_idx  |  forbidden_move_for_us  |
+        #  ---------------------------------------------------
+        # |     0     |      0      |          left           |
+        # |     0     |      1      |          right          |
+        # |     1     |      0      |          right          |
+        # |     1     |      1      |          left           |
+        #  ---------------------------------------------------
+        # In case of opponent's turn, the forbidden moves are vice-versa.
         hook_dist_x, dist_min_idx, dist_right_idx = diff_x(our_hook_pos[0], opp_hook_pos[0])
         if 1 == hook_dist_x:
             if dist_min_idx + dist_right_idx == 1:

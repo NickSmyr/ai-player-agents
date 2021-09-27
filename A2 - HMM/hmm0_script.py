@@ -1,5 +1,6 @@
 import fileinput
 
+from hmm import HMM
 from hmm_utils import Matrix2d, Vector
 
 
@@ -17,13 +18,18 @@ def parse_matrix_2d(data_list: list, shape: list):
         return Vector(data)
 
 
-inp = iter(fileinput.input())
-transition_matrix = [int(x) for x in next(inp).rstrip().split(" ")]
-transition_matrix = parse_matrix_2d(transition_matrix[2:], transition_matrix[:2])
-emission_matrix = [int(x) for x in next(inp).rstrip().split(" ")]
-emission_matrix = parse_matrix_2d(emission_matrix[2:], emission_matrix[:2])
-initial_p = [int(x) for x in next(inp).rstrip().split(" ")]
-initial_p = parse_matrix_2d(initial_p[2:], initial_p[:2])
-
-# emission_matrix (N, K)
-output = (transition_matrix @ initial_p)
+#
+# inp = iter(fileinput.input())
+# transition_matrix = [int(x) for x in next(inp).rstrip().split(" ")]
+# transition_matrix = parse_matrix_2d(transition_matrix[2:], transition_matrix[:2])
+# emission_matrix = [int(x) for x in next(inp).rstrip().split(" ")]
+# emission_matrix = parse_matrix_2d(emission_matrix[2:], emission_matrix[:2])
+# initial_p = [int(x) for x in next(inp).rstrip().split(" ")]
+# initial_p = parse_matrix_2d(initial_p[2:], initial_p[:2])
+#
+# # emission_matrix (N, K)
+# output = (transition_matrix @ initial_p)
+_hmm = HMM.from_input(fileinput.input())
+print(_hmm.A)
+print(_hmm.B)
+print(_hmm.pi)
