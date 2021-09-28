@@ -2,7 +2,7 @@
 from fileinput import FileInput
 from typing import List, Tuple, Optional
 
-from hmm_utils import Matrix2d, Vector, argmax, DeltaVector
+from hmm_utils import Matrix2d, Vector, outer_product
 
 
 class HMM:
@@ -78,6 +78,7 @@ class HMM:
         for t in range(T - 2, -1, -1):
             beta = self.A @ self.B.get_col(observations[t + 1]).hadamard(beta)
             betas.append(beta)
+            t -= 1
         # beta_{-1} Used only for testing purposes
         betas.append(beta.hadamard(self.pi).hadamard(self.B.get_col(observations[0])))
         # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
@@ -99,6 +100,9 @@ class HMM:
             digammas.append(curr_digamma)
 
             gammas.append(curr_digamma.sum_rows())
+
+        # Add last gamma for time step T-1
+        gammas.append(alphas[-1])
         return gammas, digammas
 
     def get_new_parameters(self, observations, gammas, digammas) -> Tuple[List, List, List]:
@@ -118,7 +122,7 @@ class HMM:
         # Need a mapping from observation to time steps
 
         # Can this be done with list comprehensions?
-        o2t = [[0, ] for _ in range(self.K)]
+        o2t = [[] for _ in range(self.K)]
         for t, o in enumerate(observations):
             o2t[o].append(t)
         # TODO utilize previous calc for the previous sum
