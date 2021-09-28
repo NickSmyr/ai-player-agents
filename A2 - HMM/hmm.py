@@ -2,13 +2,25 @@
 from fileinput import FileInput
 from typing import List, Tuple, Optional
 
-from hmm_utils import Matrix2d, Vector, outer_product
+from hmm_utils import Matrix2d, Vector, argmax, DeltaVector
 
 
 class HMM:
+    """
+    HMM Class:
+    Our implementation of a 1-st order Hidden Markov Model.
+    """
 
     def __init__(self, N: int, K: int, A: Optional[Matrix2d] = None, B: Optional[Matrix2d] = None,
                  pi: Optional[Vector] = None):
+        """
+        HMM class constructor.
+        :param int N: number of hidden states
+        :param int K: number of emmission types
+        :param (optional) A: the transmission model matrix
+        :param (optional) B: the observation model matrix
+        :param (optional) pi: the initial states pfm
+        """
         # Random intialization
         # TODO: better initialization than uniform
         self.A = Matrix2d.random(N, N, row_stochastic=True) if A is None else A
@@ -34,37 +46,41 @@ class HMM:
     # TODO keep alphas, betas in memory for gamma pass
     def alpha_pass(self, observations: list) -> Tuple[float, List[Vector]]:
         """
-        Perform a forward pass echoing the probability of an observation sequence.
+        Perform a forward pass to compute the likelihood of an observation sequence.
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
-        :return: a float object containing the (marginalized) probability that the HMM emitted the given observations
+        :return: a tuple object containing the (marginalized) probability that the HMM emitted the given observations
+                 and a list of all the alphas computed during the recursive computation (as Vector objects)
         """
         # Initialize alpha
         alpha = self.pi.hadamard(self.B.get_col(observations[0]))
         # Store alphas in memory
-        alphas = [alpha]
+        alphas = [alpha, ]
         # print(alpha, alpha.sum(), file=stderr)
         # Perform alpha-pass iterations
         for t in range(1, len(observations)):
             alpha = (self.A_transposed @ alpha).hadamard(self.B.get_col(observations[t]))
             alphas.append(alpha)
             # print(alpha, alpha.sum(), file=stderr)
-        # Return likelihood (sum of last alpha vec)
-        likelihood = alpha.sum()
-        return likelihood, alphas
+        # Return likelihood (sum of last alpha vec) and the recorded alphas
+        return alpha.sum(), alphas
 
     def beta_pass(self, observations: list) -> Tuple[float, List[Vector]]:
+        """
+        Perform a backward pass as another way to compute the likelihood of an observation sequence.
+        :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
+        :return: a tuple object containing the (marginalized) probability that the HMM emitted the given observations
+                 and a list of all the betas computed during the recursive computation (as Vector objects)
+        """
         T = len(observations)
         # Initial beta is beta_{T-1}
-        beta = Vector([1.] * self.A.shape[0])
-        betas = [beta]
-        t = T - 2
-        while t > -1:
-            beta = self.A @ (self.B.get_col(observations[t + 1]).hadamard(beta))
+        beta = Vector([1.] * self.N)
+        betas = [beta, ]
+        for t in range(T - 2, -1, -1):
+            beta = self.A @ self.B.get_col(observations[t + 1]).hadamard(beta)
             betas.append(beta)
-            t -= 1
         # beta_{-1} Used only for testing purposes
         betas.append(beta.hadamard(self.pi).hadamard(self.B.get_col(observations[0])))
-        # Betas are ordered in reverse to match scientific notations (betas[t] is really betas[t])
+        # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
         betas.reverse()
         # Return likelihood, betas
         return betas[0].sum(), betas
@@ -78,7 +94,7 @@ class HMM:
         digammas = []
         # We need one digamma for every t
         for t in range(T - 1):
-            temp_matrix = outer_product(alphas[t], self.B.get_col(observations[t + 1]).hadamard(betas[t + 1]))
+            temp_matrix = alphas[t].outer(self.B.get_col(observations[t + 1]).hadamard(betas[t + 1]))
             curr_digamma = self.A.hadamard(temp_matrix).apply_func(lambda x: x / ll)
             digammas.append(curr_digamma)
 
@@ -116,13 +132,29 @@ class HMM:
         ]
         return new_pi, new_A, new_B
 
-    def delta_pass(self, observations: list) -> list:
+    def delta_pass(self, observations: list) -> Tuple[Vector, float]:
         """
-        Perform a backward pass echoing the most probable state sequence for the given observation sequence.
+        Implementation of Viterbi algorithm to compute the most probable state sequence for the given observation
+        sequence.
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
-        :return:
+        :return: a tuple containing the most probable state sequence in a Vector object and the probability of the most
+                 probable path as float object
         """
-        raise NotImplementedError
+        delta = self.pi.hadamard(self.B.get_col(observations[0]))
+        # deltas = [delta, ]
+        deltas_argmax = []
+        for t in range(1, len(observations)):
+            delta = DeltaVector([argmax(delta.hadamard(self.A.get_col(i)) * self.B[i][observations[t]])
+                                 for i in range(self.N)])
+            # deltas.append(delta)
+            deltas_argmax.append(delta.argmax_data)
+        # Calculate states path
+        states_path_prob, last_state_index = argmax(delta)
+        states_path = [last_state_index, ]
+        for i in range(len(deltas_argmax) - 1, -1, -1):
+            # states_path.append(deltas[i].argmax_data[states_path[-1]])
+            states_path.append(deltas_argmax[i][states_path[-1]])
+        return Vector(states_path, dtype=int), states_path_prob
 
     @staticmethod
     def from_input(finput: FileInput) -> 'HMM':
@@ -151,7 +183,9 @@ if __name__ == '__main__':
     _ll_a, _ = _hmm.alpha_pass(_observations)
     _ll_b, _ = _hmm.beta_pass(_observations)
     # Approximate equality
-    assert abs(_ll_a - _ll_b) < 1e-3, "Likelihoods don't match"
+    assert abs(_ll_a - _ll_b) < 1e-5, "Likelihoods don't match"
 
-    _gammas, _digammas = _hmm.gamma_pass(_observations)
-    _hmm.get_new_parameters(_observations, _gammas, _digammas)
+    print(_hmm.delta_pass(_observations))
+
+    # _gammas, _digammas = _hmm.gamma_pass(_observations)
+    # _hmm.get_new_parameters(_observations, _gammas, _digammas)

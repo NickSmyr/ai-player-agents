@@ -1,12 +1,17 @@
 import abc
 import random
-from typing import Tuple
+from typing import Tuple, List
 
 
 class TNList(list, metaclass=abc.ABCMeta):
     def __init__(self, data: list):
         self.data = data
         list.__init__(self)
+
+    @property
+    @abc.abstractmethod
+    def shape(self) -> Tuple[int, int]:
+        raise NotImplementedError
 
     def __getitem__(self, i):
         return self.data.__getitem__(i)
@@ -18,7 +23,8 @@ class TNList(list, metaclass=abc.ABCMeta):
         return self.data.__repr__()
 
     def __str__(self):
-        return self.data.__str__().replace('[', '').replace(']', '').replace(',', '')
+        return (self.shape.__str__() + ' ' + self.data.__str__()) \
+            .replace('[', '').replace(']', '').replace('(', '').replace(')', '').replace(',', '')
 
     def __len__(self):
         return self.data.__len__()
@@ -36,19 +42,19 @@ class Vector(TNList):
     Our implementation of 1-d vectors. These are assumed to be COLUMN vectors.
     """
 
-    def __init__(self, data: list):
+    def __init__(self, data: list, dtype=float):
         # Cast elements to float if not already casted
-        if type(data[0]) == int:
+        if type(data[0]) == int and dtype == float:
             data = [float(d) for d in data]
         # Assert input is a 1-d list
-        assert type(data[0]) == float, f'Input not a float vector (type of data[0]={type(data[0])})'
+        assert type(data[0]) == dtype, f'Input not a {dtype} vector (type(data[0])={type(data[0])} | dtype={dtype})'
         # Initialize wrapper
         TNList.__init__(self, data=data)
         self.n = len(self.data)
 
     @property
     def shape(self) -> Tuple[int, int]:
-        return self.n, 1
+        return 1, self.n
 
     def normalize(self) -> None:
         s = sum(self.data)
@@ -79,10 +85,12 @@ class Vector(TNList):
         return sum([self.data[i] * v2.data[i] for i in range(self.n)])
 
     def hadamard(self, v2: 'Vector' or list) -> 'Vector':
-        # result = [0.] * self.n
-        # v2_data = v2.data if type(v2) == Vector else v2
-        # for i in range(self.n):
-        #     result[i] = self.data[i] * v2_data[i]
+        """
+        Perform Hadamard (aka element-wise) product among the elements of the self and v2 vectors.
+        :param Vector v2: second operand
+        :return: a new Vector instance of the same size as self and v2 and with elements the products of the
+                 corresponding elements of both vectors
+        """
         return Vector([d * v2d for d, v2d in zip(self.data, v2.data)])
 
     def outer(self, v2: 'Vector') -> 'Matrix2d':
@@ -91,26 +99,25 @@ class Vector(TNList):
             a = (a1, a2, ..., an),
             b = (b1, b2, ..., bm)
         Returns a matrix of shape NxM
-            A = [ a1b1, a1b2, ..., a1bm,
-                  .                  .
-                  .         .        .
-                  .                  .
-                  anb1, anb2, ..., anbm]
+            A = [a1b1, a1b2, ..., a1bm,
+                  .                 .
+                  .        .        .
+                  .                 .
+                 anb1, anb2, ..., anbm]
         :param Vector v2: the second operand
         :return: a new Matrix2d instance of shape NxM
         """
         return Matrix2d([[v1i * v2j for v2j in v2.data] for v1i in self.data])
 
-    def __str__(self):
-        return f'1 {self.n} ' + super().__str__()
-
     @staticmethod
     def from_str(line: str):
         line_data = [x for x in line.rstrip().split(" ")]
         nrows = int(line_data.pop(0))
-        assert nrows == 1
-        n = int(line_data.pop(0))
-        return Vector([float(line_data[j]) for j in range(n)])
+        assert nrows == 1, f'Vector should be row-vectors (nrows={nrows})'
+        ncols = int(line_data.pop(0))
+        assert ncols == len(line_data), f'Given numbers of elements do not match (ncols={ncols} | ' \
+                                        f'len(line_data)={len(line_data)})'
+        return Vector([float(lj) for lj in line_data])
 
     @staticmethod
     def random(n: int, normalize: bool = False) -> 'Vector':
@@ -124,6 +131,12 @@ class Vector(TNList):
         if normalize:
             v.normalize()
         return v
+
+
+class DeltaVector(Vector):
+    def __init__(self, data: List[Tuple[float, int]]):
+        Vector.__init__(self, data=[t[0] for t in data])
+        self.argmax_data = [t[1] for t in data]
 
 
 class Matrix2d(TNList):
@@ -188,15 +201,12 @@ class Matrix2d(TNList):
         :param Matrix2d or Vector m2: the second matrix
         :return: a Matrix2d or Vector object as the result of matrix multiplication
         """
-        self.data: list
-        m2_rows, m2_cols = m2.shape
-        assert self.ncols == m2_rows, f'Matrix dimensions must agree ({self.ncols} != {self.shape[0]})'
-
-        # Initialize output list
+        # Matrix-matrix multiplication
         if type(m2) == Matrix2d:
+            assert self.ncols == m2.nrows, f'Matrix dimensions must agree ({self.ncols} != {m2.nrows})'
             return Matrix2d([[sum(ri * cj for ri, cj in zip(r, c)) for c in zip(*m2.data)] for r in self.data])
-
-        # Perform NAIVE matrix-vector multiplication
+        # Matrix-vector multiplication
+        assert self.ncols == m2.n, f'Matrix dimensions must agree ({self.ncols} != {m2.n})'
         return Vector([sum(ri * rj for ri, rj in zip(r, m2.data)) for r in self.data])
 
     def hadamard(self, m2: 'Matrix2d') -> 'Matrix2d':
@@ -207,14 +217,13 @@ class Matrix2d(TNList):
         """
         return Matrix2d([[drc * m2drc for drc, m2drc in zip(dr, m2dr)] for dr, m2dr in zip(self.data, m2.data)])
 
-    def __str__(self):
-        return f'{self.nrows} {self.ncols} ' + super().__str__()
-
     @staticmethod
     def from_str(line: str):
         line_data = [x for x in line.rstrip().split(" ")]
         nrows = int(line_data.pop(0))
         ncols = int(line_data.pop(0))
+        assert nrows * ncols == len(line_data), f'Given numbers of elements do not match ' \
+                                                f'((nrows,ncols)={(nrows, ncols)} | len(line_data)={len(line_data)})'
         return Matrix2d([[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)])
 
     @staticmethod
@@ -242,25 +251,34 @@ class Matrix2d(TNList):
         return Matrix2d(new_data)
 
 
-def outer_product(a: Vector, b: Vector) -> Matrix2d:
+def argmax(l: list) -> Tuple[float, int]:
     """
-    Given vectors a = (a1, a2, ..., an),
-                  b = (b1, b2, ..., bm)
-    Returns a matrix of shape NxM
-                A = [ a1b1, a1b2, ..., a1bm,
-                      .
-                      .
-                      .
-                      anb1, anb2, ..., anbm]
+    Find the maximum value and also return the argmax from a list of floats.
+    :param list l: input list of floats
+    :return: a tuple object containing the (max, argmax) as float and int respectively
     """
-    n = a.shape[0]
-    m = b.shape[0]
+    return max(zip(l, range(len(l))))
 
-    data = [
-        [a[i] * b[j] for j in range(m)]
-        for i in range(n)
-    ]
-    return Matrix2d(data)
+
+# def outer_product(a: Vector, b: Vector) -> Matrix2d:
+#     """
+#     Given vectors a = (a1, a2, ..., an),
+#                   b = (b1, b2, ..., bm)
+#     Returns a matrix of shape NxM
+#                 A = [ a1b1, a1b2, ..., a1bm,
+#                       .
+#                       .
+#                       .
+#                       anb1, anb2, ..., anbm]
+#     """
+#     n = a.n
+#     m = b.n
+#
+#     data = [
+#         [a[i] * b[j] for j in range(m)]
+#         for i in range(n)
+#     ]
+#     return Matrix2d(data)
 
 
 if __name__ == '__main__':
@@ -301,5 +319,5 @@ if __name__ == '__main__':
 
     _line = '4 4 0.2 0.5 0.3 0.0 0.1 0.4 0.4 0.1 0.2 0.0 0.4 0.4 0.2 0.3 0.0 0.5'
     _m = Matrix2d.from_str(_line)
-    assert _line == str(_m)
-    print(_m)
+    assert _line == str(_m), f'str(_m)={str(_m)}'
+    print('PASSed')
