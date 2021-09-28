@@ -122,7 +122,7 @@ class HMM:
         # Need a mapping from observation to time steps
 
         # Can this be done with list comprehensions?
-        o2t = [[0, ] for _ in range(self.K)]
+        o2t = [[] for _ in range(self.K)]
         for t, o in enumerate(observations):
             o2t[o].append(t)
         # TODO utilize previous calc for the previous sum
