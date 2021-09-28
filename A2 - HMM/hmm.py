@@ -155,9 +155,13 @@ class HMM:
         # Calculate states path
         states_path_prob, last_state_index = argmax(delta)
         states_path = [last_state_index, ]
-        for i in range(len(deltas_argmax) - 1, -1, -1):
+        i = len(deltas_argmax) - 1
+        while i >-1:
             # states_path.append(deltas[i].argmax_data[states_path[-1]])
             states_path.append(deltas_argmax[i][states_path[-1]])
+            i -= 1
+        # Reverse the states so they follow the time ordering
+        states_path.reverse()
         return Vector(states_path, dtype=int), states_path_prob
 
     @staticmethod
@@ -179,17 +183,3 @@ class HMM:
                 pi = Vector.from_str(line)
         return HMM(N=N, K=K, A=A, B=B, pi=pi)
 
-
-if __name__ == '__main__':
-    _hmm = HMM(N=4, K=3)
-    _observations = [0, 1, 2, 1]
-    # Likelihood
-    _ll_a, _ = _hmm.alpha_pass(_observations)
-    _ll_b, _ = _hmm.beta_pass(_observations)
-    # Approximate equality
-    assert abs(_ll_a - _ll_b) < 1e-5, "Likelihoods don't match"
-
-    print(_hmm.delta_pass(_observations))
-
-    # _gammas, _digammas = _hmm.gamma_pass(_observations)
-    # _hmm.get_new_parameters(_observations, _gammas, _digammas)

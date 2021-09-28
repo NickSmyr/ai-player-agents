@@ -1,10 +1,10 @@
 import unittest
 
-from hmm_utils import Vector, Matrix2d
+from hmm_utils import Vector, Matrix2d, argmax
 
 
 class TestHMMUtils(unittest.TestCase):
-    def test_something(self):
+    def test_outer_and_from_str(self):
         # _v1 = Vector([1, 1, 1, 1])
         # _v2 = Vector([0, 2, 0, 1])
         # print(_v1 @ _v2)
@@ -44,6 +44,12 @@ class TestHMMUtils(unittest.TestCase):
         _m = Matrix2d.from_str(_line)
         assert _line == str(_m)
         # print(_m)
+
+    def test_argmax(self):
+        l = [1, 2, 3]
+        self.assertEqual(argmax(l), (3, 2))
+        l = [3 ,2 ,1]
+        self.assertEqual(argmax(l), (3,0))
 
 
 
