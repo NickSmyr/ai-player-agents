@@ -2,7 +2,7 @@
 from fileinput import FileInput
 from typing import List, Tuple, Optional
 
-from hmm_utils import Matrix2d, Vector, outer_product
+from hmm_utils import Matrix2d, Vector, DeltaVector, argmax
 
 
 class HMM:
@@ -16,7 +16,7 @@ class HMM:
         """
         HMM class constructor.
         :param int N: number of hidden states
-        :param int K: number of emmission types
+        :param int K: number of emission types
         :param (optional) A: the transmission model matrix
         :param (optional) B: the observation model matrix
         :param (optional) pi: the initial states pfm
@@ -122,7 +122,7 @@ class HMM:
         # Need a mapping from observation to time steps
 
         # Can this be done with list comprehensions?
-        o2t = [[] for _ in range(self.K)]
+        o2t = [[0, ] for _ in range(self.K)]
         for t, o in enumerate(observations):
             o2t[o].append(t)
         # TODO utilize previous calc for the previous sum
