@@ -83,6 +83,9 @@ class HMM:
             digammas.append(curr_digamma)
 
             gammas.append(curr_digamma.sum_rows())
+
+        # Add last gamma for time step T-1
+        gammas.append(alphas[-1])
         return gammas, digammas
 
     def get_new_parameters(self, observations, gammas, digammas) -> Tuple[List, List, List]:
@@ -102,7 +105,7 @@ class HMM:
         # Need a mapping from observation to time steps
 
         # Can this be done with list comprehensions?
-        o2t = [[0, ] for _ in range(self.K)]
+        o2t = [[] for _ in range(self.K)]
         for t, o in enumerate(observations):
             o2t[o].append(t)
         # TODO utilize previous calc for the previous sum
@@ -143,15 +146,3 @@ class HMM:
                 pi = Vector.from_str(line)
         return HMM(N=N, K=K, A=A, B=B, pi=pi)
 
-
-if __name__ == '__main__':
-    _hmm = HMM(N=4, K=3)
-    _observations = [0, 1, 2, 1]
-    # Likelihood
-    _ll_a, _ = _hmm.alpha_pass(_observations)
-    _ll_b, _ = _hmm.beta_pass(_observations)
-    # Approximate equality
-    assert abs(_ll_a - _ll_b) < 1e-3, "Likelihoods don't match"
-
-    _gammas, _digammas = _hmm.gamma_pass(_observations)
-    _hmm.get_new_parameters(_observations, _gammas, _digammas)
