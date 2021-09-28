@@ -29,7 +29,7 @@ def parse_matrix_2d(data_list: list, shape: list):
 #
 # # emission_matrix (N, K)
 # output = (transition_matrix @ initial_p)
-_hmm = HMM.from_input(fileinput.input())
+_hmm, _ = HMM.from_input(fileinput.input())
 print(_hmm.A)
 print(_hmm.B)
 print(_hmm.pi)

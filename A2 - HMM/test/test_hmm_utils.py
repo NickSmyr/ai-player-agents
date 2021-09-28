@@ -3,6 +3,34 @@ import unittest
 from hmm_utils import Vector, Matrix2d
 
 
+class TestMatrix2d(unittest.TestCase):
+    def setUp(self) -> None:
+        self.eye = Matrix2d([[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
+        self.reye = Matrix2d([[0., 0., 1.], [0., 1., 0.], [1., 0., 0.]])
+
+    def test_iadd(self):
+        # test with matrix operand
+        self.eye += self.reye
+        self.assertListEqual(self.eye[0], [1., 0., 1.])
+        self.assertListEqual(self.eye[1], [0., 2., 0.])
+        self.assertListEqual(self.eye[2], [1., 0., 1.])
+        # test with float operand
+        self.eye += 0.5
+        self.assertListEqual(self.eye[0], [1.5, 0.5, 1.5])
+        self.assertListEqual(self.eye[1], [0.5, 2.5, 0.5])
+        self.assertListEqual(self.eye[2], [1.5, 0.5, 1.5])
+
+    def test_itruediv(self):
+        self.eye /= 2
+        self.assertListEqual(self.eye[0], [0.5, 0., 0.])
+        self.assertListEqual(self.eye[1], [0., 0.5, 0.])
+        self.assertListEqual(self.eye[2], [0., 0., 0.5])
+
+    def tearDown(self) -> None:
+        del self.eye
+        del self.reye
+
+
 class TestHMMUtils(unittest.TestCase):
     def test_something(self):
         # _v1 = Vector([1, 1, 1, 1])
@@ -44,8 +72,3 @@ class TestHMMUtils(unittest.TestCase):
         _m = Matrix2d.from_str(_line)
         assert _line == str(_m)
         # print(_m)
-
-
-
-if __name__ == '__main__':
-    unittest.main()
