@@ -42,6 +42,9 @@ class TNList(list):
     def __iter__(self):
         return iter(self.data)
 
+    def append(self, o) -> None:
+        self.data.append(o)
+
     def hadamard(self, l2: 'TNList') -> 'TNList':
         raise NotImplementedError
 
@@ -75,6 +78,12 @@ class Vector(TNList):
 
     def sum(self):
         return sum(self.data)
+
+    def product(self):
+        p = 1.
+        for n in self.data:
+            p *= n
+        return p
 
     def __mul__(self, scalar: float) -> 'Vector':
         """
@@ -336,28 +345,30 @@ class HMM:
                  a list of all c's (aka the scaling coefficients)
         """
         # Initialize alpha
-        alpha = self.pi.hadamard(self.B.get_col(observations[0]))
+        alpha_tm1 = self.pi.hadamard(self.B.get_col(observations[0]))
+        c = 1 / alpha_tm1.sum()
         # Store alphas (and Cs) in memory
-        cs = [alpha.sum(), ]
+        cs = Vector([c, ])
         #   - scale a_0
-        alpha /= cs[0]
-        alphas = [alpha, ]
+        alpha_tm1 *= c
+        alphas = [alpha_tm1, ]
         T = len(observations)
         # Perform alpha-pass iterations
         for t in range(1, T):
             #   - compute alpha
-            alpha = (self.A_transposed @ alpha).hadamard(self.B.get_col(observations[t]))
+            alpha = (self.A_transposed @ alpha_tm1).hadamard(self.B.get_col(observations[t]))
             #   - scale alpha
-            alpha_sum = alpha.sum()
-            alpha /= alpha_sum
+            c = 1 / alpha.sum()
+            alpha *= c
             #   - append to list
             alphas.append(alpha)
-            cs.append(alpha_sum)
-            if alpha_sum == 0.0:
+            cs.append(c)
+            if c == 0.0:
                 raise RuntimeError(f'll drove to 0.0 (t={t})')
+            alpha_tm1 = alpha
             # print(alpha, alpha.sum(), file=stderr)
         # Return likelihood (sum of last alpha vec) and the recorded alphas
-        return -sum([math.log10(1 / c) for c in cs]), alphas, cs
+        return -sum([math.log10(c) for c in cs]), alphas, cs
 
     def beta_pass(self, observations: list, cs: Optional[List] = None) -> Tuple[float, List[Vector]]:
         """
@@ -371,21 +382,22 @@ class HMM:
         # Initial beta is beta_{T-1}
         if cs is None:
             cs = [1.] * T
-        beta_tp1 = [cs[-1]] * self.N
-        betas = [Vector(beta_tp1), ]
+        beta_tp1 = Vector([cs[-1]] * self.N)
+        betas = [beta_tp1, ]
 
         for t in range(T - 2, -1, -1):
-            O_tp1 = observations[t + 1]
-            #   - initialize beta_t
-            beta_t = [0.] * self.N
-            for i in range(self.N):
-                #   - compute beta_t[i]
-                for j in range(self.N):
-                    beta_t[i] += self.A[i][j] * self.B[j][O_tp1] * beta_tp1[j]
-                #   - scale beta_t[i]
-                beta_t[i] /= cs[t]
+            # O_tp1 = observations[t+1]
+            #   - compute beta_t
+            beta_t = self.A @ self.B.get_col(observations[t + 1]).hadamard(beta_tp1)
+            # beta_t = [0.] * self.N
+            # for i in range(self.N):
+            #     #   - compute beta_t[i]
+            #     for j in range(self.N):
+            #         beta_t[i] += self.A[i][j]*self.B[j][O_tp1]* beta_tp1[j]
+            #   - scale beta_t[i]
+            beta_t *= cs[t]
             #   - append to betas list
-            betas.append(Vector(beta_t))
+            betas.append(beta_t)
             #   - save for next iteration
             beta_tp1 = beta_t
         # for t in range(T - 2, -1, -1):
@@ -496,7 +508,11 @@ class HMM:
             self.reestimate(observations=observations, gammas=gammas, digammas=digammas)
             #   - check convergence
             ll, alphas, cs = self.alpha_pass(observations=observations)
-            if abs(old_ll - ll) < tol:
+            assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
+            ll_diff = ll - old_ll
+            if ll_diff < 0:
+                break
+            elif ll_diff < tol:
                 break
             else:
                 old_ll = ll
@@ -506,6 +522,8 @@ class HMM:
         """
         Implementation of Viterbi algorithm to compute the most probable state sequence for the given observation
         sequence.
+        [Theory] HMMs can be used to maximize the expected number of correct states.
+        [  >>  ] DP can be used to maximize the entire sequence probability.
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
         :return: a tuple containing the most probable state sequence in a Vector object and the probability of the most
                  probable path as float object
@@ -553,6 +571,6 @@ if __name__ == '__main__':
     #   - initialize HMM
     _hmm, _observations = HMM.from_input(fileinput.input())
     #   - output best model estimate
-    A_opt, B_opt, _ = _hmm.baum_welch(_observations, tol=1e-10, max_iter=1000)
+    A_opt, B_opt, _ = _hmm.baum_welch(_observations, tol=1e-10, max_iter=50)
     print(A_opt.__str__(round_places=6))
     print(B_opt.__str__(round_places=6))
