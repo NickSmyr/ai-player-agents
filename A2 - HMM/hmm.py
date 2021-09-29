@@ -1,5 +1,6 @@
 # from sys import stderr
 from fileinput import FileInput
+from math import log
 from typing import List, Tuple, Optional
 
 from hmm_utils import Matrix2d, Vector, DeltaVector, argmax
@@ -52,17 +53,21 @@ class HMM:
                  and a list of all the alphas computed during the recursive computation (as Vector objects)
         """
         # Initialize alpha
-        alpha = self.pi.hadamard(self.B.get_col(observations[0]))
+        alpha = Vector(self.pi.hadamard(self.B.get_col(observations[0])))
         # Store alphas in memory
-        alphas = [alpha, ]
+        c = sum(alpha)
+        alphas = [alpha* (1/c),]
+        c_s = [c]
         # print(alpha, alpha.sum(), file=stderr)
         # Perform alpha-pass iterations
         for t in range(1, len(observations)):
-            alpha = (self.A_transposed @ alpha).hadamard(self.B.get_col(observations[t]))
-            alphas.append(alpha)
+            alpha = Vector((self.A_transposed @ alpha).hadamard(self.B.get_col(observations[t])))
+            c = sum(alpha)
+            alphas.append(alpha * (1/c))
+            c_s.append(c)
             # print(alpha, alpha.sum(), file=stderr)
-        # Return likelihood (sum of last alpha vec) and the recorded alphas
-        return alpha.sum(), alphas
+        # Return log likelihood (sum of last alpha vec) and the recorded alphas
+        return -sum([log(x) for x in c_s]), alphas
 
     def beta_pass(self, observations: list) -> Tuple[float, List[Vector]]:
         """
@@ -87,6 +92,9 @@ class HMM:
         return betas[0].sum(), betas
 
     def gamma_pass(self, observations: list) -> Tuple[List[Vector], List[Matrix2d]]:
+        """
+        :return gammas, digammas
+        """
         T = len(observations)
         ll, alphas = self.alpha_pass(observations)
         _, betas = self.beta_pass(observations)
@@ -106,6 +114,9 @@ class HMM:
         return gammas, digammas
 
     def get_new_parameters(self, observations, gammas, digammas) -> Tuple[List, List, List]:
+        """
+        :return: new_pi, new_A, new_B
+        """
         # Calculate new pi
         new_pi = gammas[0]
         # SUM all digammas
@@ -121,7 +132,7 @@ class HMM:
         # Calculate new observation matrix (B)
         # Need a mapping from observation to time steps
 
-        # Can this be done with list comprehensions?
+        # TODO Can this be done with list comprehensions?
         o2t = [[] for _ in range(self.K)]
         for t, o in enumerate(observations):
             o2t[o].append(t)
@@ -163,6 +174,28 @@ class HMM:
         # Reverse the states so they follow the time ordering
         states_path.reverse()
         return Vector(states_path, dtype=int), states_path_prob
+
+    def baum_welch(self, observations: list):
+        """
+        :return:
+        """
+        converged = False
+        old_ll = -99999999999
+        new_A = self.A
+        new_B = self.B
+        new_pi = self.pi
+        while not converged:
+            ll, alphas = self.alpha_pass(observations)
+            _, betas = self.beta_pass(observations)
+            gammas, digammas = self.gamma_pass(observations)
+            new_pi, new_A, new_B = self.get_new_parameters(observations, gammas, digammas)
+            if abs(old_ll - ll) < 1e-3:
+                converged = True
+            self.A, self.B, self.pi = new_A, new_B, new_pi
+
+        return self.A, self.B, self.pi
+
+
 
     @staticmethod
     def from_input(finput: FileInput) -> 'HMM':
