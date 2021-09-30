@@ -1,15 +1,13 @@
-import abc
-import random
-from typing import Tuple, List
+import fileinput
+from typing import Optional, Tuple, List
 
 
-class TNList(list, metaclass=abc.ABCMeta):
+class TNList(list):
     def __init__(self, data: list):
         self.data = data
         list.__init__(self)
 
     @property
-    @abc.abstractmethod
     def shape(self) -> Tuple[int, int]:
         raise NotImplementedError
 
@@ -22,20 +20,9 @@ class TNList(list, metaclass=abc.ABCMeta):
     def __repr__(self):
         return self.data.__repr__()
 
-    def __str__(self, round_places: int = -1, include_shape: bool = True):
-        shape_str = self.shape.__str__() + ' ' if include_shape else ''
-        if round_places == -1:
-            return (shape_str + self.data.__str__()) \
-                .replace('[', '').replace(']', '').replace('(', '').replace(')', '').replace(',', '')
-        data_str = ''
-        for d in self.data:
-            if type(d) == list:
-                for dd in d:
-                    data_str += str(round(dd, round_places)) + ' '
-            else:
-                data_str += str(round(d, round_places)) + ' '
-        return (shape_str + data_str.rstrip()).replace('[', '').replace(']', '').replace('(', '').replace(')', '') \
-            .replace(',', '').replace('\'', '')
+    def __str__(self):
+        return (self.shape.__str__() + ' ' + self.data.__str__()) \
+            .replace('[', '').replace(']', '').replace('(', '').replace(')', '').replace(',', '')  # .replace('\'', '')
 
     def __len__(self):
         return self.data.__len__()
@@ -123,15 +110,6 @@ class Vector(TNList):
         """
         return Matrix2d([[v1i * v2j for v2j in v2.data] for v1i in self.data])
 
-    def __imul__(self, number: float):
-        """
-        In place multiplication by a number (i.e. v *= number, where v is a Vector instance).
-        :param float number: the multiplier
-        :return: self (since the operation happens in place)
-        """
-        self.data = [c * number for c in self.data]
-        return self
-
     def __itruediv__(self, number: float):
         """
         In place division by a number (i.e. v /= number, where v is a Vector instance).
@@ -158,19 +136,6 @@ class Vector(TNList):
         assert ncols == len(line_data), f'Given numbers of elements do not match (ncols={ncols} | ' \
                                         f'len(line_data)={len(line_data)})'
         return Vector([float(lj) for lj in line_data])
-
-    @staticmethod
-    def random(n: int, normalize: bool = False) -> 'Vector':
-        """
-        Get a vector with elements drawn from a Uniform[0,1] distribution.
-        :param int n: number of elements in vector
-        :param bool normalize: set to True to normalize the vector to sum up to 1.0
-        :return: a new Vector instance containing :attr:`n` random elements
-        """
-        v = Vector([random.random() for _ in range(n)])
-        if normalize:
-            v.normalize()
-        return v
 
 
 class DeltaVector(Vector):
@@ -292,20 +257,6 @@ class Matrix2d(TNList):
                                                 f'((nrows,ncols)={(nrows, ncols)} | len(line_data)={len(line_data)})'
         return Matrix2d([[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)])
 
-    @staticmethod
-    def random(nrows: int, ncols: int, row_stochastic: bool = True) -> 'Matrix2d':
-        """
-        Initialize a 2d matrix with elements from uniform random in [0,1]
-        :param int nrows: number of rows
-        :param int ncols: number of columns
-        :param bool row_stochastic: set to True to normalize each row of the matrix to sum up to 1.0
-        :return: a 'Matrix2d' object
-        """
-        m = Matrix2d([[random.random() for _ in range(ncols)] for _ in range(nrows)])
-        if row_stochastic:
-            m.normalize_rows()
-        return m
-
     # @staticmethod
     # def from_list(l: list, ncols: int) -> 'Matrix2d' or Vector:
     #     return Vector([l[li][0] for li in range(len(l))]) if ncols == 1 else Matrix2d(l)
@@ -325,3 +276,201 @@ def argmax(l: list) -> Tuple[float, int]:
     """
     return max(zip(l, range(len(l))))
 
+
+class HMM:
+    """
+    HMM Class:
+    Our implementation of a 1-st order Hidden Markov Model.
+    """
+
+    def __init__(self, N: int, K: int, A: Optional[Matrix2d] = None, B: Optional[Matrix2d] = None,
+                 pi: Optional[Vector] = None):
+        """
+        HMM class constructor.
+        :param int N: number of hidden states
+        :param int K: number of emission types
+        :param (optional) A: the transmission model matrix
+        :param (optional) B: the observation model matrix
+        :param (optional) pi: the initial states pfm
+        """
+        self.A = A
+        if A is not None:
+            self.A_transposed = self.A.T
+        self.B = B
+        if B is not None:
+            self.B_transposed = self.B.T
+        self.pi = pi
+
+        self.N = N
+        self.K = K
+
+    # TODO numerically stable methods
+    # TODO keep alphas, betas in memory for gamma pass
+    def alpha_pass(self, observations: list) -> Tuple[float, List[Vector]]:
+        """
+        Perform a forward pass to compute the likelihood of an observation sequence.
+        :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
+        :return: a tuple object containing the (marginalized) probability that the HMM emitted the given observations
+                 and a list of all the alphas computed during the recursive computation (as Vector objects)
+        """
+        # Initialize alpha
+        alpha = self.pi.hadamard(self.B.get_col(observations[0]))
+        # Store alphas in memory
+        alphas = [alpha, ]
+        # print(alpha, alpha.sum(), file=stderr)
+        # Perform alpha-pass iterations
+        for t in range(1, len(observations)):
+            alpha = (self.A_transposed @ alpha).hadamard(self.B.get_col(observations[t]))
+            alphas.append(alpha)
+            # print(alpha, alpha.sum(), file=stderr)
+        # Return likelihood (sum of last alpha vec) and the recorded alphas
+        return alpha.sum(), alphas
+
+    def beta_pass(self, observations: list) -> Tuple[float, List[Vector]]:
+        """
+        Perform a backward pass as another way to compute the likelihood of an observation sequence.
+        :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
+        :return: a tuple object containing the (marginalized) probability that the HMM emitted the given observations
+                 and a list of all the betas computed during the recursive computation (as Vector objects)
+        """
+        T = len(observations)
+        # Initial beta is beta_{T-1}
+        beta = Vector([1.] * self.N)
+        betas = [beta, ]
+        for t in range(T - 2, -1, -1):
+            beta = self.A @ self.B.get_col(observations[t + 1]).hadamard(beta)
+            betas.append(beta)
+        # beta_{-1} Used only for testing purposes
+        betas.append(beta.hadamard(self.pi).hadamard(self.B.get_col(observations[0])))
+        # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
+        betas.reverse()
+        # Return likelihood, betas
+        return betas[0].sum(), betas
+
+    def gamma_pass(self, observations: list) -> Tuple[List[Vector], List[Matrix2d]]:
+        """
+        Implementation of Baum-Welch algorithm's Gamma Pass to compute gammas & digammas (i.e. prob of being in state i
+        at time t and moving to state j at time t+1).
+        :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
+        :return: a tuple containing ([Gamma_t = Vector(P(Xt=i|O_1:t,HMM) for all i's) for t = 1...T],
+                                     [DiGamma_t = Matrix2d(P(Xt=i,Xt+1=j|O_1:t,HMM) for all (i, j)'s) for t = 1...T])
+        """
+        T = len(observations)
+        ll, alphas = self.alpha_pass(observations)
+        _, betas = self.beta_pass(observations)
+
+        gammas = []
+        digammas = []
+        # We need one digamma for every t
+        for t in range(T - 1):
+            digamma = self.A.hadamard(
+                alphas[t].outer(
+                    self.B.get_col(observations[t + 1]).hadamard(betas[t + 1])
+                )
+            )
+            digamma /= ll
+            digammas.append(digamma)
+            gammas.append(digamma.sum_rows())
+
+            # temp_matrix = alphas[t].outer(self.B.get_col(observations[t + 1]).hadamard(betas[t + 1]))
+            # curr_digamma = self.A.hadamard(temp_matrix).apply_func(lambda x: x / ll)
+            # digammas.append(curr_digamma)
+            # gammas.append(curr_digamma.sum_rows())
+            # assert all([[abs(c1 - c2) < 1e-10 for c1, c2 in zip(r1, r2)]
+            #             for r1, r2 in zip(digamma.data, curr_digamma.data)])
+
+        # Add last gamma for time step T
+        gammas.append(alphas[-1] / ll)
+        return gammas, digammas
+
+    def reestimate(self, observations: list, gammas: List[Vector],
+                   digammas: List[Matrix2d]) -> Tuple[Vector, Matrix2d, Matrix2d]:
+        """
+        Implementation of Baum-Welch algorithm's parameters re-estimation using computed gammas and digammas.
+        :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
+        :param list gammas: computed from gamma_pass()
+        :param list digammas: computed from gamma_pass()
+        :return: a tuple containing the new pi, A, B as Vector, Matrix2d, Matrix2d objects respectively
+        """
+        # Calculate new pi
+        new_pi = gammas[0].normalize()
+        # SUM all digammas
+        # Calculate new transition matrix (A)
+        digammas_sum = [
+            [sum(dcolumn) for dcolumn in zip(*drows)]
+            for drows in zip(*digammas)]
+        # Sum all gammas
+        gammas_sum = [sum(dcolumn) for dcolumn in zip(*gammas[:-1])]
+        new_A = Matrix2d([[col / to_divide for col in row]
+                          for row, to_divide in zip(digammas_sum, gammas_sum)]).normalize_rows()
+
+        # Calculate new observation matrix (B)
+        # Need a mapping from observation to time steps
+
+        # Can this be done with list comprehensions?
+        o2t = [[0, ] for _ in range(self.K)]
+        for t, o in enumerate(observations):
+            o2t[o].append(t)
+        # TODO utilize previous calc for the previous sum
+        # Sum all gammas
+        gammas_sum = [sum(dcolumn) for dcolumn in zip(*gammas)]
+        # New_B is NxK
+        # See stamp tutorial for an explanation of notation
+        new_B = Matrix2d([
+            [sum([gammas_j[t] for t in t_s]) for t_s in o2t]
+            for gamma_sum_j, gammas_j in zip(gammas_sum, zip(*gammas))
+        ]).normalize_rows()
+        return new_pi, new_A, new_B
+
+    def delta_pass(self, observations: list) -> Tuple[Vector, float]:
+        """
+        Implementation of Viterbi algorithm to compute the most probable state sequence for the given observation
+        sequence.
+        :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
+        :return: a tuple containing the most probable state sequence in a Vector object and the probability of the most
+                 probable path as float object
+        """
+        delta = self.pi.hadamard(self.B.get_col(observations[0]))
+        # deltas = [delta, ]
+        deltas_argmax = []
+        for t in range(1, len(observations)):
+            delta = DeltaVector([argmax(delta.hadamard(self.A.get_col(i)) * self.B[i][observations[t]])
+                                 for i in range(self.N)])
+            # deltas.append(delta)
+            deltas_argmax.append(delta.argmax_data)
+        # Calculate states path
+        states_path_prob, last_state_index = argmax(delta)
+        states_path = [last_state_index, ]
+        for i in range(len(deltas_argmax) - 1, -1, -1):
+            # states_path.append(deltas[i].argmax_data[states_path[-1]])
+            states_path.append(deltas_argmax[i][states_path[-1]])
+        return Vector(states_path, dtype=int), states_path_prob
+
+    @staticmethod
+    def from_input(finput: fileinput.FileInput) -> Tuple['HMM', Optional[List]]:
+        """
+        Initialize a new HMM instance using input provided in the form of Kattis text files.
+        :param FileInput finput: a FileInput instance instantiated from stdin (e.g. by running python file using input
+                                 redirect from a *.in file)
+        :return: an HMM instance
+        """
+        A, B, pi, N, K, obs = None, None, None, None, None, None
+        for i, line in enumerate(finput):
+            if i == 0:
+                A = Matrix2d.from_str(line)
+            elif i == 1:
+                B = Matrix2d.from_str(line)
+                N, K = B.shape
+            elif i == 2:
+                pi = Vector.from_str(line)
+            else:
+                obs = Vector.from_str('1 ' + line).dtype(int).data
+        return HMM(N=N, K=K, A=A, B=B, pi=pi), obs
+
+
+if __name__ == '__main__':
+    #   - initialize HMM
+    _hmm, _observations = HMM.from_input(fileinput.input())
+    #   - output probability of observation sequence
+    _obs_likelihood, _ = _hmm.alpha_pass(_observations)
+    print(_obs_likelihood)
