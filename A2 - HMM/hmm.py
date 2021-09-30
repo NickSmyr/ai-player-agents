@@ -1,7 +1,6 @@
 # from sys import stderr
 
 import fileinput
-import math
 from sys import stderr
 from typing import List, Tuple, Optional
 
@@ -25,12 +24,11 @@ class HMM:
         :param (optional) pi: the initial states pfm
         """
         # Random intialization
-        # TODO: better initialization than uniform
-        self.A = Matrix2d.random(N, N, row_stochastic=True) if A is None else A
+        self.A = A if A is not None else Matrix2d.random(N, N, row_stochastic=True)
         self.A_transposed = self.A.T
-        self.B = Matrix2d.random(N, K, row_stochastic=True) if B is None else B
+        self.B = B if B is not None else Matrix2d.random(N, K, row_stochastic=True)
         self.B_transposed = self.B.T
-        self.pi = Vector.random(N, normalize=True) if pi is None else pi
+        self.pi = pi if pi is not None else Vector.random(N, normalize=True) if pi is None else pi
 
         self.N = N
         self.K = K
@@ -46,8 +44,6 @@ class HMM:
         # All passed.
         # ------------------------------------
 
-    # TODO numerically stable methods
-    # TODO keep alphas, betas in memory for gamma pass
     def alpha_pass(self, observations: list) -> Tuple[float, List[Vector], List[float]]:
         """
         Perform a forward pass to compute the likelihood of an observation sequence.
@@ -57,28 +53,30 @@ class HMM:
                  a list of all c's (aka the scaling coefficients)
         """
         # Initialize alpha
-        alpha = self.pi.hadamard(self.B.get_col(observations[0]))
+        alpha_tm1 = self.pi.hadamard(self.B.get_col(observations[0]))
+        c = 1 / alpha_tm1.sum()
         # Store alphas (and Cs) in memory
-        cs = [alpha.sum(), ]
+        cs = Vector([c, ])
         #   - scale a_0
-        alpha /= cs[0]
-        alphas = [alpha, ]
+        alpha_tm1 *= c
+        alphas = [alpha_tm1, ]
         T = len(observations)
         # Perform alpha-pass iterations
         for t in range(1, T):
             #   - compute alpha
-            alpha = (self.A_transposed @ alpha).hadamard(self.B.get_col(observations[t]))
+            alpha = (self.A_transposed @ alpha_tm1).hadamard(self.B.get_col(observations[t]))
             #   - scale alpha
-            alpha_sum = alpha.sum()
-            alpha /= alpha_sum
+            c = 1 / alpha.sum()
+            alpha *= c
+            #   - check for underflow
+            if c == 0.0:
+                raise RuntimeError(f'll drove to 0.0 (t={t})')
             #   - append to list
             alphas.append(alpha)
-            cs.append(alpha_sum)
-            if alpha_sum == 0.0:
-                raise RuntimeError(f'll drove to 0.0 (t={t})')
-            # print(alpha, alpha.sum(), file=stderr)
+            cs.append(c)
+            alpha_tm1 = alpha
         # Return likelihood (sum of last alpha vec) and the recorded alphas
-        return -sum([math.log10(1/c) for c in cs]), alphas, cs
+        return -cs.log_sum(), alphas, cs
 
     def beta_pass(self, observations: list, cs: Optional[List] = None) -> Tuple[float, List[Vector]]:
         """
@@ -92,29 +90,18 @@ class HMM:
         # Initial beta is beta_{T-1}
         if cs is None:
             cs = [1.] * T
-        beta_tp1 = [cs[-1]] * self.N
-        betas = [Vector(beta_tp1), ]
-
+        beta_tp1 = Vector([cs[-1]] * self.N)
+        betas = [beta_tp1, ]
+        # Iterate through reversed time
         for t in range(T - 2, -1, -1):
-            O_tp1 = observations[t+1]
-            #   - initialize beta_t
-            beta_t = [0.] * self.N
-            for i in range(self.N):
-                #   - compute beta_t[i]
-                for j in range(self.N):
-                    beta_t[i] += self.A[i][j]*self.B[j][O_tp1]* beta_tp1[j]
-                #   - scale beta_t[i]
-                beta_t[i] /= cs[t]
+            #   - compute beta_t
+            beta_t = self.A @ self.B.get_col(observations[t + 1]).hadamard(beta_tp1)
+            #   - scale beta_t[i]
+            beta_t *= cs[t]
             #   - append to betas list
-            betas.append(Vector(beta_t))
+            betas.append(beta_t)
             #   - save for next iteration
             beta_tp1 = beta_t
-        # for t in range(T - 2, -1, -1):
-        #     beta = self.A @ self.B.get_col(observations[t + 1]).hadamard(beta)
-        #     beta /= cs[t]
-        #     betas.append(beta)
-        # beta_{-1} Used only for testing purposes
-        # betas.append(beta.hadamard(self.pi).hadamard(self.B.get_col(observations[0])))
         # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
         betas.reverse()
         # Return likelihood, betas
@@ -131,31 +118,22 @@ class HMM:
         :return: a tuple containing ([Gamma_t = Vector(P(Xt=i|O_1:t,HMM) for all i's) for t = 1...T],
                                      [DiGamma_t = Matrix2d(P(Xt=i,Xt+1=j|O_1:t,HMM) for all (i, j)'s) for t = 1...T])
         """
+        T = len(observations)
+        # 1. Get alpha_t and beta_t for all t=0,...,T-1
         if alphas is None:
             _, alphas, cs = self.alpha_pass(observations)
         _, betas = self.beta_pass(observations, cs=cs)
-        T = len(observations)
-
+        # 2. Compute digammas and gammas for every t
         gammas = []
         digammas = []
-        # We need one digamma for every t
         for t in range(T - 1):
-            digamma = self.A.hadamard(
-                alphas[t].outer(
-                    self.B.get_col(observations[t + 1]).hadamard(betas[t + 1])
-                )
-            )
-            # digamma /= ll
+            #   - compute digamma_t
+            digamma = self.A.hadamard(alphas[t].outer(
+                self.B.get_col(observations[t + 1]).hadamard(betas[t + 1])
+            ))
             digammas.append(digamma)
+            #   - marginalize over i (rows) to compute gamma_t
             gammas.append(digamma.sum_rows())
-
-            # temp_matrix = alphas[t].outer(self.B.get_col(observations[t + 1]).hadamard(betas[t + 1]))
-            # curr_digamma = self.A.hadamard(temp_matrix).apply_func(lambda x: x / ll)
-            # digammas.append(curr_digamma)
-            # gammas.append(curr_digamma.sum_rows())
-            # assert all([[abs(c1 - c2) < 1e-10 for c1, c2 in zip(r1, r2)]
-            #             for r1, r2 in zip(digamma.data, curr_digamma.data)])
-
         # Add last gamma for time step T
         gammas.append(alphas[-1])
         return gammas, digammas
@@ -163,6 +141,7 @@ class HMM:
     def reestimate(self, observations: list, gammas: List[Vector], digammas: List[Matrix2d]) -> None:
         """
         Implementation of Baum-Welch algorithm's parameters re-estimation using computed gammas and digammas.
+        Source: A Revealing Introduction to Hidden Markov Models, Mark Stamp
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
         :param list gammas: computed from gamma_pass()
         :param list digammas: computed from gamma_pass()
@@ -190,10 +169,9 @@ class HMM:
                         numer += gammas[t][i]
                 self.B[i][j] = numer / denom
         # Re-initialize model
+        self.pi = new_pi.normalize()
         self.A.normalize_rows()
         self.B.normalize_rows()
-        new_pi.normalize()
-        self.pi = new_pi
         self.A_transposed = self.A.T
         self.B_transposed = self.B.T
 
@@ -223,8 +201,11 @@ class HMM:
             try:
                 ll, alphas, cs = self.alpha_pass(observations=observations)
                 assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
-                ll_diff = abs(old_ll - ll)
-                if ll_diff < tol:
+                ll_diff = ll - old_ll
+                if ll_diff < 0:
+                    print(f'[baum_welch] old_ll > ll (old_ll={old_ll:.5f}, ll={ll:.5f} - i={i:02d})', file=stderr)
+                    break
+                elif ll_diff < tol:
                     print(f'[baum_welch] reached tol={tol} at i={i} (ll={ll:.3f}, old_ll={old_ll:.3f})', file=stderr)
                     break
                 else:
@@ -238,6 +219,8 @@ class HMM:
         """
         Implementation of Viterbi algorithm to compute the most probable state sequence for the given observation
         sequence.
+        [Theory] HMMs can be used to maximize the expected number of correct states.
+        [  >>  ] DP can be used to maximize the entire sequence probability.
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
         :return: a tuple containing the most probable state sequence in a Vector object and the probability of the most
                  probable path as float object

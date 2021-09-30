@@ -1,4 +1,5 @@
 import abc
+import math
 import random
 from typing import Tuple, List
 
@@ -43,6 +44,9 @@ class TNList(list, metaclass=abc.ABCMeta):
     def __iter__(self):
         return iter(self.data)
 
+    def append(self, o) -> None:
+        self.data.append(o)
+
     def hadamard(self, l2: 'TNList') -> 'TNList':
         raise NotImplementedError
 
@@ -74,8 +78,11 @@ class Vector(TNList):
     def normalize(self) -> 'Vector':
         return self.__itruediv__(number=self.sum())
 
-    def sum(self):
+    def sum(self) -> float:
         return sum(self.data)
+
+    def log_sum(self) -> float:
+        return sum(map(math.log10, self.data))
 
     def __mul__(self, scalar: float) -> 'Vector':
         """
@@ -301,14 +308,12 @@ class Matrix2d(TNList):
         :param bool row_stochastic: set to True to normalize each row of the matrix to sum up to 1.0
         :return: a 'Matrix2d' object
         """
+        # TODO: better initialization than uniform
         m = Matrix2d([[random.random() for _ in range(ncols)] for _ in range(nrows)])
         if row_stochastic:
             m.normalize_rows()
         return m
 
-    # @staticmethod
-    # def from_list(l: list, ncols: int) -> 'Matrix2d' or Vector:
-    #     return Vector([l[li][0] for li in range(len(l))]) if ncols == 1 else Matrix2d(l)
     def apply_func(self, f) -> 'Matrix2d':
         """
         Apply a function to each matrix element.
@@ -324,4 +329,3 @@ def argmax(l: list) -> Tuple[float, int]:
     :return: a tuple object containing the (max, argmax) as float and int respectively
     """
     return max(zip(l, range(len(l))))
-
