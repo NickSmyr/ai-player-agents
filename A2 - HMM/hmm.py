@@ -24,6 +24,7 @@ class HMM:
         :param (optional) pi: the initial states pfm
         """
         # Random intialization
+        # TODO stamp initialization
         self.A = A if A is not None else Matrix2d.random(N, N, row_stochastic=True)
         self.A_transposed = self.A.T
         self.B = B if B is not None else Matrix2d.random(N, K, row_stochastic=True)
@@ -44,6 +45,17 @@ class HMM:
         # All passed.
         # ------------------------------------
 
+    def initialize_stamp(self, N : int, K: int):
+        # Initialize pi to around 1/N
+        self.pi = Vector([1. / N] * N) + (Vector.random(N) * 0.01)
+        self.pi.normalize()
+        # Initialize A to around 1/N
+        self.A = Matrix2d([[1. / N] * N for _ in range(N)]) + (Matrix2d.random(N, N) * 0.01)
+        self.A.normalize_rows()
+        # Initialize b to around 1/M
+        self.B = Matrix2d([[1. / K] * K for _ in range(N)]) + (Matrix2d.random(N, K) * 0.01)
+        self.B.normalize_rows()
+
     def alpha_pass(self, observations: list) -> Tuple[float, List[Vector], List[float]]:
         """
         Perform a forward pass to compute the likelihood of an observation sequence.
@@ -54,6 +66,8 @@ class HMM:
         """
         # Initialize alpha
         alpha_tm1 = self.pi.hadamard(self.B.get_col(observations[0]))
+        if alpha_tm1.sum()==0:
+            print("FUCK")
         c = 1 / alpha_tm1.sum()
         # Store alphas (and Cs) in memory
         cs = Vector([c, ])
@@ -66,6 +80,8 @@ class HMM:
             #   - compute alpha
             alpha = (self.A_transposed @ alpha_tm1).hadamard(self.B.get_col(observations[t]))
             #   - scale alpha
+            if alpha.sum() == 0:
+                print("FUCK")
             c = 1 / alpha.sum()
             alpha *= c
             #   - check for underflow
