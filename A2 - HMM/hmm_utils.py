@@ -105,6 +105,15 @@ class Vector(TNList):
         assert self.n == v2.n, 'Vector dims must be equal'
         return sum([self.data[i] * v2.data[i] for i in range(self.n)])
 
+    def __add__(self, v2: 'Vector') -> 'Vector':
+        """
+        Add two vectors
+        :param Vector v2: the second vector
+        :return: a Vector
+        """
+        assert self.n == v2.n, 'Vector dims must be equal'
+        return Vector([self.data[i] + v2.data[i] for i in range(self.n)])
+
     def hadamard(self, v2: 'Vector' or list) -> 'Vector':
         """
         Perform Hadamard (aka element-wise) product among the elements of the self and v2 vectors.
@@ -289,6 +298,18 @@ class Matrix2d(TNList):
         """
         self.data = [[c / number for c in r] for r in self.data]
         return self
+
+    def __mul__(self, other: float or 'Matrix2d') -> 'Matrix2d':
+        if type(other) == float:
+            return Matrix2d([[col * other for col in row] for row in self])
+        else:
+            return Matrix2d([[cola*colb for cola, colb in zip(rowa, rowb)] for rowa, rowb in zip(self,other)])
+
+    def __add__(self, other: float or 'Matrix2d') -> 'Matrix2d':
+        if type(other) == float:
+            return Matrix2d([[col + float for col in row] for row in self])
+        else:
+            return Matrix2d([[cola + colb for cola, colb in zip(rowa, rowb)] for rowa, rowb in zip(self,other)])
 
     @staticmethod
     def from_str(line: str):
