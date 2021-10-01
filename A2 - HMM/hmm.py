@@ -1,6 +1,8 @@
 # from sys import stderr
 
 import fileinput
+import math
+from math import log10
 from sys import stderr
 from typing import List, Tuple, Optional
 
@@ -67,7 +69,7 @@ class HMM:
         # Initialize alpha
         alpha_tm1 = self.pi.hadamard(self.B.get_col(observations[0]))
         if alpha_tm1.sum()==0:
-            print("FUCK")
+            print("Alpha went to 0 on alpha pass", file=stderr)
         c = 1 / alpha_tm1.sum()
         # Store alphas (and Cs) in memory
         cs = Vector([c, ])
@@ -81,12 +83,12 @@ class HMM:
             alpha = (self.A_transposed @ alpha_tm1).hadamard(self.B.get_col(observations[t]))
             #   - scale alpha
             if alpha.sum() == 0:
-                print("FUCK")
+                print("Alpha went to 0 on alpha pass", file=stderr)
             c = 1 / alpha.sum()
             alpha *= c
             #   - check for underflow
-            if c == 0.0:
-                raise RuntimeError(f'll drove to 0.0 (t={t})')
+            #if c == 0.0:
+                #raise RuntimeError(f'll drove to 0.0 (t={t})')
             #   - append to list
             alphas.append(alpha)
             cs.append(c)
@@ -121,7 +123,7 @@ class HMM:
         # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
         betas.reverse()
         # Return likelihood, betas
-        return betas[0].sum(), betas
+        return -log10(betas[0].sum()), betas
 
     def gamma_pass(self, observations: list, alphas: Optional[List[Vector]] = None,
                    cs: Optional[list] = None) -> Tuple[List[Vector], List[Matrix2d]]:
@@ -184,6 +186,12 @@ class HMM:
                     if observations[t] == j:
                         numer += gammas[t][i]
                 self.B[i][j] = numer / denom
+
+        # Add some small noise
+        noise_amount = 0.
+        self.pi = self.pi + (Vector.random(self.N) * noise_amount)
+        self.A = self.A + (Matrix2d.random(self.N,self.N) * noise_amount)
+        self.B = self.B + (Matrix2d.random(self.N,self.K) * noise_amount)
         # Re-initialize model
         self.pi = new_pi.normalize()
         self.A.normalize_rows()
@@ -216,7 +224,7 @@ class HMM:
             #   - check convergence
             try:
                 ll, alphas, cs = self.alpha_pass(observations=observations)
-                assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
+                #assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
                 ll_diff = ll - old_ll
                 if ll_diff < 0:
                     print(f'[baum_welch] old_ll > ll (old_ll={old_ll:.5f}, ll={ll:.5f} - i={i:02d})', file=stderr)
