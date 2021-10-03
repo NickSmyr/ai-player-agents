@@ -50,6 +50,9 @@ class TNList(list, metaclass=abc.ABCMeta):
     def hadamard(self, l2: 'TNList') -> 'TNList':
         raise NotImplementedError
 
+    def copy(self):
+        return self.data.copy()
+
 
 class Vector(TNList):
     """
@@ -84,14 +87,20 @@ class Vector(TNList):
     def log_sum(self) -> float:
         return sum(map(math.log10, self.data))
 
+    def __add__(self, v2: 'Vector') -> 'Vector':
+        return Vector([v1d + v2d for v1d, v2d in zip(self.data, v2.data)])
+
+    def __iadd__(self, v2: 'Vector') -> 'Vector':
+        self.data = [v1d + v2d for v1d, v2d in zip(self.data, v2.data)]
+        return self
+
     def __mul__(self, scalar: float) -> 'Vector':
         """
         Perform vector-scalar multiplication (scaling) and return self pointer.
         :param float scalar: the multiplier
         :return: self instance having first been scaled by the given scalar
         """
-        self.data = [d * scalar for d in self.data]
-        return self
+        return Vector([d * scalar for d in self.data])
 
     def __rmul__(self, scalar):
         return self.__mul__(scalar)
@@ -112,7 +121,7 @@ class Vector(TNList):
         :return: a new Vector instance of the same size as self and v2 and with elements the products of the
                  corresponding elements of both vectors
         """
-        return Vector([d * v2d for d, v2d in zip(self.data, v2.data)])
+        return Vector([d * v2d for d, v2d in zip(self.data, v2.data if type(v2) == Vector else v2)])
 
     def outer(self, v2: 'Vector') -> 'Matrix2d':
         """
@@ -157,14 +166,18 @@ class Vector(TNList):
         return Vector([c / number for c in self.data])
 
     @staticmethod
-    def from_str(line: str):
+    def _from_str_get_list(line: str) -> list:
         line_data = [x for x in line.rstrip().split(" ")]
         nrows = int(line_data.pop(0))
         assert nrows == 1, f'Vector should be row-vectors (nrows={nrows})'
         ncols = int(line_data.pop(0))
         assert ncols == len(line_data), f'Given numbers of elements do not match (ncols={ncols} | ' \
                                         f'len(line_data)={len(line_data)})'
-        return Vector([float(lj) for lj in line_data])
+        return [float(lj) for lj in line_data]
+
+    @staticmethod
+    def from_str(line: str) -> 'Vector':
+        return Vector(Vector._from_str_get_list(line=line))
 
     @staticmethod
     def random(n: int, normalize: bool = False) -> 'Vector':
@@ -174,7 +187,7 @@ class Vector(TNList):
         :param bool normalize: set to True to normalize the vector to sum up to 1.0
         :return: a new Vector instance containing :attr:`n` random elements
         """
-        v = Vector([random.random() for _ in range(n)])
+        v = Vector([(1. / n) + (0.01 if i == 0 else 0.) + 0.001 * random.random() for i in range(n)])
         if normalize:
             v.normalize()
         return v
@@ -247,7 +260,7 @@ class Matrix2d(TNList):
             vdata[c] = self.data[r][c]
         return Vector(vdata)
 
-    def __matmul__(self, m2: 'Matrix2d' or Vector) -> 'Matrix2d' or Vector:
+    def __matmul__(self, m2: 'Matrix2d' or Vector or list) -> 'Matrix2d' or Vector:
         """
         Perform dot product between self and m2.
         :param Matrix2d or Vector m2: the second matrix
@@ -258,8 +271,8 @@ class Matrix2d(TNList):
             assert self.ncols == m2.nrows, f'Matrix dimensions must agree ({self.ncols} != {m2.nrows})'
             return Matrix2d([[sum(ri * cj for ri, cj in zip(r, c)) for c in zip(*m2.data)] for r in self.data])
         # Matrix-vector multiplication
-        assert self.ncols == m2.n, f'Matrix dimensions must agree ({self.ncols} != {m2.n})'
-        return Vector([sum(ri * rj for ri, rj in zip(r, m2.data)) for r in self.data])
+        # assert self.ncols == m2.n, f'Matrix dimensions must agree ({self.ncols} != {m2.n})'
+        return Vector([sum(ri * rj for ri, rj in zip(r, m2.data if type(m2) == Vector else m2)) for r in self.data])
 
     def hadamard(self, m2: 'Matrix2d') -> 'Matrix2d':
         """
@@ -281,6 +294,24 @@ class Matrix2d(TNList):
             self.data = [[c + n_or_m for c in r] for r in self.data]
         return self
 
+    def __add__(self, n_or_m: float or 'Matrix2d') -> 'Matrix2d':
+        """
+        In place division by a number (i.e. m /= number, where m is a Matrix2d instance).
+        :param float or Matrix2d n_or_m: the second term (either a number or an entire matrix
+        :return: self (since the operation happens in place)
+        """
+        if type(n_or_m) == Matrix2d:
+            return Matrix2d([[c1 + c2 for c1, c2 in zip(r1, r2)] for r1, r2 in zip(self.data, n_or_m.data)])
+        return Matrix2d([[c + n_or_m for c in r] for r in self.data])
+
+    def __mul__(self, n: float) -> 'Matrix2d':
+        """
+        In place division by a number (i.e. m /= number, where m is a Matrix2d instance).
+        :param float n: the second term (a float)
+        :return: self (since the operation happens in place)
+        """
+        return Matrix2d([[c * n for c in r] for r in self.data])
+
     def __itruediv__(self, number: float):
         """
         In place division by a number (i.e. m /= number, where m is a Matrix2d instance).
@@ -290,14 +321,37 @@ class Matrix2d(TNList):
         self.data = [[c / number for c in r] for r in self.data]
         return self
 
+    def apply_func(self, f) -> 'Matrix2d':
+        """
+        Apply a function to each matrix element.
+        """
+        new_data = [[f(col) for col in row] for row in self.data]
+        return Matrix2d(new_data)
+
+    def is_close(self, m2: 'Matrix2d', tol: float = 1e-3) -> bool:
+        """
+        Check if self matrix is close to given m2.
+        :param Matrix2d m2: the second matrix
+        :param float tol: tolerance less than which elements are considered equal
+        :return: a bool object
+        """
+        if self.shape != m2.shape:
+            return False
+        import numpy as np
+        return np.allclose(np.array(self.data), np.array(m2.data), rtol=tol, atol=tol)
+
     @staticmethod
-    def from_str(line: str):
+    def _from_str_get_list(line: str) -> list:
         line_data = [x for x in line.rstrip().split(" ")]
         nrows = int(line_data.pop(0))
         ncols = int(line_data.pop(0))
         assert nrows * ncols == len(line_data), f'Given numbers of elements do not match ' \
                                                 f'((nrows,ncols)={(nrows, ncols)} | len(line_data)={len(line_data)})'
-        return Matrix2d([[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)])
+        return [[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)]
+
+    @staticmethod
+    def from_str(line: str) -> 'Matrix2d':
+        return Matrix2d(Matrix2d._from_str_get_list(line=line))
 
     @staticmethod
     def random(nrows: int, ncols: int, row_stochastic: bool = True) -> 'Matrix2d':
@@ -308,18 +362,15 @@ class Matrix2d(TNList):
         :param bool row_stochastic: set to True to normalize each row of the matrix to sum up to 1.0
         :return: a 'Matrix2d' object
         """
-        # TODO: better initialization than uniform
-        m = Matrix2d([[random.random() for _ in range(ncols)] for _ in range(nrows)])
+        # TODO: better initialization than this one
+        m = Matrix2d([[
+            1 * (1. / ncols)
+            + 0.01 * (1. if ci == ri else 0.)
+            + 0.001 * random.random()
+            for ci in range(ncols)] for ri in range(nrows)])
         if row_stochastic:
             m.normalize_rows()
         return m
-
-    def apply_func(self, f) -> 'Matrix2d':
-        """
-        Apply a function to each matrix element.
-        """
-        new_data = [[f(col) for col in row] for row in self.data]
-        return Matrix2d(new_data)
 
 
 def argmax(l: list) -> Tuple[float, int]:

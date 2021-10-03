@@ -1,3 +1,4 @@
+import json
 import random
 
 from kivy.properties import BooleanProperty
@@ -145,6 +146,33 @@ class Stats(Popup):
         return stats
 
     def count_guess(self):
+        species_guessed = {}
+        for fn in self.fishes_widgets:
+            fg = self.fishes_widgets[fn].guessed
+            ft = self.fishes_widgets[fn].type_fish
+            if ft not in species_guessed.keys():
+                species_guessed[ft] = {
+                    'found': 0,
+                    'total': 0,
+                    'prc': '',
+                }
+            species_guessed[ft]['found'] += 1 if fg else 0
+            species_guessed[ft]['total'] += 1
+        for spk in species_guessed:
+            prc = 100 * float(species_guessed[spk]['found']) / float(species_guessed[spk]['total'])
+            species_guessed[spk]['prc'] = f'{prc:.2f}'
+        print('')
+        print('')
+        print('')
+        print('<<<<<<<<<<<<< START: SPECIES STATS >>>>>>>>>>>>>')
+        print('')
+        print(json.dumps(dict(sorted(species_guessed.items())), indent=4))
+        print('')
+        print('<<<<<<<<<<<<<   END: SPECIES STATS >>>>>>>>>>>>>')
+        print('')
+        print('')
+        print('')
+
         for f in self.fishes_widgets.values():
             if f.guessed:
                 self.guessed += 1

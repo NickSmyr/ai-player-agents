@@ -104,7 +104,8 @@ class Application(SettingLoader):
     @staticmethod
     def get_player_controller():
         # from player_controller_hmm import PlayerControllerHMM
-        from player import PlayerControllerHMM
+        from hmm_assignments.fishing_derby.hmm_fd_deliverable import PlayerControllerHMM
+        # from player import PlayerControllerHMM
         pc = PlayerControllerHMM()
         return pc
 

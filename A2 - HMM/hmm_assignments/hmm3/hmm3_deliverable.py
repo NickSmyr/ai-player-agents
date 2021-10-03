@@ -85,14 +85,16 @@ class Vector(TNList):
             p *= n
         return p
 
+    def __add__(self, v2: 'Vector') -> 'Vector':
+        return Vector([v1d + v2d for v1d, v2d in zip(self.data, v2.data)])
+
     def __mul__(self, scalar: float) -> 'Vector':
         """
         Perform vector-scalar multiplication (scaling) and return self pointer.
         :param float scalar: the multiplier
         :return: self instance having first been scaled by the given scalar
         """
-        self.data = [d * scalar for d in self.data]
-        return self
+        return Vector([d * scalar for d in self.data])
 
     def __rmul__(self, scalar):
         return self.__mul__(scalar)
@@ -451,9 +453,11 @@ class HMM:
         gammas.append(alphas[-1])
         return gammas, digammas
 
-    def reestimate(self, observations: list, gammas: List[Vector], digammas: List[Matrix2d]) -> None:
+    def reestimate(self, observations: list, gammas: List[Vector], digammas: List[Matrix2d],
+                   lambda_mix: float = 1.1) -> None:
         """
         Implementation of Baum-Welch algorithm's parameters re-estimation using computed gammas and digammas.
+        Source: A Revealing Introduction to Hidden Markov Models, Mark Stamp
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
         :param list gammas: computed from gamma_pass()
         :param list digammas: computed from gamma_pass()
@@ -461,7 +465,7 @@ class HMM:
         """
         T = len(observations)
         # Reestimate pi
-        new_pi = gammas[0]
+        new_pi = (1.0 - lambda_mix) * self.pi + lambda_mix * gammas[0]
         for i in range(self.N):
             denom = 0.
             for t in range(T - 1):
@@ -471,7 +475,7 @@ class HMM:
                 numer = 0.
                 for t in range(T - 1):
                     numer += digammas[t][i][j]
-                self.A[i][j] = numer / denom
+                self.A[i][j] = (1.0 - lambda_mix) * self.A[i][j] + lambda_mix * (numer / denom)
             # Reestimate B
             denom += gammas[T - 1][i]
             for j in range(self.K):
@@ -479,12 +483,11 @@ class HMM:
                 for t in range(T):
                     if observations[t] == j:
                         numer += gammas[t][i]
-                self.B[i][j] = numer / denom
+                self.B[i][j] = (1.0 - lambda_mix) * self.B[i][j] + lambda_mix * (numer / denom)
         # Re-initialize model
+        self.pi = new_pi.normalize()
         self.A.normalize_rows()
         self.B.normalize_rows()
-        new_pi.normalize()
-        self.pi = new_pi
         self.A_transposed = self.A.T
         self.B_transposed = self.B.T
 
