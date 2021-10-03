@@ -2,7 +2,6 @@
 
 import fileinput
 import math
-from math import log10
 from sys import stderr
 from typing import List, Tuple, Optional
 
@@ -52,7 +51,7 @@ class HMM:
         # All passed.
         # ------------------------------------
 
-    def initialize_stamp(self, N : int, K: int):
+    def initialize_stamp(self, N: int, K: int):
         # Initialize pi to around 1/N
         self.pi = Vector([1. / N] * N) + (Vector.random(N) * 0.01)
         self.pi.normalize()
@@ -77,7 +76,7 @@ class HMM:
             return 0., [], []
         # Initialize alpha
         alpha_tm1 = self.pi.hadamard(self.B.get_col(observations[0]))
-        if alpha_tm1.sum()==0:
+        if alpha_tm1.sum() == 0:
             print("Alpha went to 0 on alpha pass", file=stderr)
         c = 1 / alpha_tm1.sum()
         # Store alphas (and Cs) in memory
@@ -95,8 +94,8 @@ class HMM:
             c = 1 / alpha.sum()
             alpha *= c
             #   - check for underflow
-            #if c == 0.0:
-                #raise RuntimeError(f'll drove to 0.0 (t={t})')
+            # if c == 0.0:
+            # raise RuntimeError(f'll drove to 0.0 (t={t})')
             #   - append to list
             alphas.append(alpha)
             cs.append(c)
@@ -135,7 +134,6 @@ class HMM:
         # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
         betas.reverse()
         # Return likelihood, betas
-        betas_np = np.array(betas)
         return betas[0].sum(), betas
 
     def gamma_pass(self, observations: list, alphas: Optional[List[Vector]] = None, cs: Optional[list] = None,
@@ -173,7 +171,7 @@ class HMM:
         return gammas, digammas
 
     def reestimate(self, observations: list, gammas: List[Vector], digammas: List[Matrix2d],
-                   lambda_mix: float = 1.0, T: Optional[int] = None) -> Tuple[Vector, Matrix2d, Matrix2d]:
+                   lambda_mix: float = 1.0, T: Optional[int] = None) -> Optional[Tuple[Vector, Matrix2d, Matrix2d]]:
         """
         Implementation of Baum-Welch algorithm's parameters re-estimation using computed gammas and digammas.
         Source: A Revealing Introduction to Hidden Markov Models, Mark Stamp
@@ -188,7 +186,6 @@ class HMM:
         if T == 1:
             return None
         rN = range(self.N)
-        pi = self.pi.data.copy() if lambda_mix != 1.0 else [0. for _ in rN]
         A = self.A.data.copy() if lambda_mix != 1.0 else [[0. for _ in rN] for _ in rN]
         B = self.B.data.copy() if lambda_mix != 1.0 else [[0. for _ in range(self.K)] for _ in rN]
         # Reestimate pi
@@ -227,6 +224,7 @@ class HMM:
         :param int max_iter: maximum allowed number of iterations
         :param (optional) A_gt: ground truth A (used for plotting error evolution)
         :param (optional) T: total number of observations (in case list was pre-initialized but not fully filled)
+        :param bool update_params:
         :return: a tuple object containing the (A, B, final_likelihood) matrices of the converged model
         """
         # Get initial likelihood
@@ -255,7 +253,7 @@ class HMM:
             #   - check convergence
             try:
                 ll, alphas, cs = self.alpha_pass(observations=observations)
-                #assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
+                # assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
                 ll_diff = ll - old_ll
                 if ll_diff < 0:
                     print(f'[baum_welch] old_ll > ll (old_ll={old_ll:.5f}, ll={ll:.5f} - i={i:02d})', file=stderr)
