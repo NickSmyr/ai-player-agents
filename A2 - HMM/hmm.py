@@ -1,6 +1,8 @@
 # from sys import stderr
+
 import fileinput
 import math
+from math import log10
 from sys import stderr
 from typing import List, Tuple, Optional
 
@@ -29,6 +31,7 @@ class HMM:
         :param (optional) pi: the initial states pfm
         """
         # Random intialization
+        # TODO stamp initialization
         self.A = A if A is not None else Matrix2d.random(N, N, row_stochastic=True)
         self.A_transposed = self.A.T
         self.B = B if B is not None else Matrix2d.random(N, K, row_stochastic=True)
@@ -49,6 +52,17 @@ class HMM:
         # All passed.
         # ------------------------------------
 
+    def initialize_stamp(self, N : int, K: int):
+        # Initialize pi to around 1/N
+        self.pi = Vector([1. / N] * N) + (Vector.random(N) * 0.01)
+        self.pi.normalize()
+        # Initialize A to around 1/N
+        self.A = Matrix2d([[1. / N] * N for _ in range(N)]) + (Matrix2d.random(N, N) * 0.01)
+        self.A.normalize_rows()
+        # Initialize b to around 1/M
+        self.B = Matrix2d([[1. / K] * K for _ in range(N)]) + (Matrix2d.random(N, K) * 0.01)
+        self.B.normalize_rows()
+
     def alpha_pass(self, observations: list, T: Optional[int] = None) -> Tuple[float, List[Vector], List[float]]:
         """
         Perform a forward pass to compute the likelihood of an observation sequence.
@@ -63,6 +77,8 @@ class HMM:
             return 0., [], []
         # Initialize alpha
         alpha_tm1 = self.pi.hadamard(self.B.get_col(observations[0]))
+        if alpha_tm1.sum()==0:
+            print("Alpha went to 0 on alpha pass", file=stderr)
         c = 1 / alpha_tm1.sum()
         # Store alphas (and Cs) in memory
         cs = Vector([c, ])
@@ -74,11 +90,13 @@ class HMM:
             #   - compute alpha
             alpha = (self.A_transposed @ alpha_tm1).hadamard(self.B.get_col(observations[t]))
             #   - scale alpha
+            if alpha.sum() == 0:
+                print("Alpha went to 0 on alpha pass", file=stderr)
             c = 1 / alpha.sum()
             alpha *= c
             #   - check for underflow
-            if c == 0.0:
-                raise RuntimeError(f'll drove to 0.0 (t={t})')
+            #if c == 0.0:
+                #raise RuntimeError(f'll drove to 0.0 (t={t})')
             #   - append to list
             alphas.append(alpha)
             cs.append(c)
@@ -237,7 +255,7 @@ class HMM:
             #   - check convergence
             try:
                 ll, alphas, cs = self.alpha_pass(observations=observations)
-                assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
+                #assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
                 ll_diff = ll - old_ll
                 if ll_diff < 0:
                     print(f'[baum_welch] old_ll > ll (old_ll={old_ll:.5f}, ll={ll:.5f} - i={i:02d})', file=stderr)
