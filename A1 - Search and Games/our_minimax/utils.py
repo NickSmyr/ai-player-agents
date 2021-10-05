@@ -70,15 +70,31 @@ def diff_x(x1, x2) -> Tuple[int, int, int]:
     return tuple(min(enumerate(min_items), key=itemgetter(1))) + (1,)
 
 
-def get_node_repr(node: Node) -> str:
+def get_node_repr(node: Node, symmetric: bool = False) -> str:
     """
     Two nodes have the same representation if the respective state boards seem identical (fishes & hooks at the same
     positions, same player's turn).
     :param Node node: a game tree node
+    :param bool symmetric: set to True to compute for symmetric x-positions
     :return: a node representation as a str object
     """
     state = node.state
-    return f'p{state.player}ps{state.player_scores}hp{state.hook_positions}fp{state.fish_positions}'
+    if not symmetric:
+        return f'p{state.player}ps{state.player_scores}hp{state.hook_positions}fp{state.fish_positions}'
+    # Symmetric State
+    #   - player remains the same
+    #   - player scores remain the same
+    #   - hook_positions are mirrored
+    hook_positions = {}
+    for p in state.hook_positions:
+        hp = state.hook_positions[p]
+        hook_positions[p] = ((20 - hp[0] + 1) if hp[0] >= 10 else (20 - hp[0] - 1), hp[1])
+    #   - fish_positions are mirrored
+    fish_positions = {}
+    for fi in state.fish_positions:
+        fp = state.fish_positions[fi]
+        fish_positions[fi] = ((20 - fp[0] + 1) if fp[0] >= 10 else (20 - fp[0] - 1), fp[1])
+    return f'p{state.player}ps{state.player_scores}hp{hook_positions}fp{fish_positions}'
 
 
 def holding_fish(initial_tree_node: Node) -> bool:
@@ -98,4 +114,4 @@ def point_distance_l1(hook_pos: tuple, fish_pos: tuple) -> float:
     :return: distance as a float object
     """
     return min(abs(hook_pos[0] - fish_pos[0]), abs(hook_pos[0] - 20 + fish_pos[0])) + \
-        abs(hook_pos[1] - fish_pos[1]) + 20 - fish_pos[1]
+           abs(hook_pos[1] - fish_pos[1]) + 20 - fish_pos[1]

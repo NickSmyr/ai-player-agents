@@ -99,6 +99,8 @@ class PVSAgent(MinimaxAgent):
             node_repr = get_node_repr(node=node)
             if node_repr in self.EXPLORED_SET and node.depth >= self.EXPLORED_SET[node_repr][2]:
                 return self.EXPLORED_SET[node_repr][:2]
+            # TODO: check symmetric states
+            symmetric_node_repr = get_node_repr(node=node, symmetric=True)
         # 2. Get all children
         children: List[Node] = node.compute_and_get_children()
         # 3. Check if reached leaf nodes or max depth
