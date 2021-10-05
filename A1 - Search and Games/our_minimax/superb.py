@@ -86,7 +86,7 @@ class PVSAgent(MinimaxAgent):
                                 for fi, fp in state.fish_positions.items()]) * 2
 
         # Save computed value in node
-        node.h_value = return_value
+        state.h_value = return_value
         return return_value
 
     def minimax(self, node: Node, player: int, depth: int, alpha: Optional[float] = None,
