@@ -454,36 +454,29 @@ class HMM:
         return gammas, digammas
 
     def reestimate(self, observations: list, gammas: List[Vector], digammas: List[Matrix2d],
-                   lambda_mix: float = 1.1) -> None:
+                   lambda_mix: float = 1.0) -> None:
         """
         Implementation of Baum-Welch algorithm's parameters re-estimation using computed gammas and digammas.
         Source: A Revealing Introduction to Hidden Markov Models, Mark Stamp
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
         :param list gammas: computed from gamma_pass()
         :param list digammas: computed from gamma_pass()
+        :param float lambda_mix: mixing of old and new parameteres
         :return: a tuple containing the new pi, A, B as Vector, Matrix2d, Matrix2d objects respectively
         """
         T = len(observations)
         # Reestimate pi
-        new_pi = (1.0 - lambda_mix) * self.pi + lambda_mix * gammas[0]
+        new_pi = gammas[0]
         for i in range(self.N):
-            denom = 0.
-            for t in range(T - 1):
-                denom += gammas[t][i]
+            # Compute (almost) common denominator
+            denom = sum(gammas[t][i] for t in range(T - 1))
             # Reestimate A
-            for j in range(self.N):
-                numer = 0.
-                for t in range(T - 1):
-                    numer += digammas[t][i][j]
-                self.A[i][j] = (1.0 - lambda_mix) * self.A[i][j] + lambda_mix * (numer / denom)
+            self.A[i] = [0. for _ in range(self.N)] if denom == 0.0 else \
+                [sum(digammas[t][i][j] for t in range(T - 1)) / denom for j in range(self.N)]
             # Reestimate B
             denom += gammas[T - 1][i]
-            for j in range(self.K):
-                numer = 0.
-                for t in range(T):
-                    if observations[t] == j:
-                        numer += gammas[t][i]
-                self.B[i][j] = (1.0 - lambda_mix) * self.B[i][j] + lambda_mix * (numer / denom)
+            self.B[i] = [0. for _ in range(self.K)] if denom == 0.0 else \
+                [sum(gammas[t][i] for t in range(T) if observations[t] == j) / denom for j in range(self.K)]
         # Re-initialize model
         self.pi = new_pi.normalize()
         self.A.normalize_rows()
@@ -511,9 +504,9 @@ class HMM:
             self.reestimate(observations=observations, gammas=gammas, digammas=digammas)
             #   - check convergence
             ll, alphas, cs = self.alpha_pass(observations=observations)
-            assert ll >= old_ll, f'[baum_welch] ll={ll} < old_ll={old_ll} (i={i})'
             ll_diff = ll - old_ll
             if ll_diff < 0:
+                print(f'[baum_welch][i={i:02d}] old_ll > ll Negative')
                 break
             elif ll_diff < tol:
                 break

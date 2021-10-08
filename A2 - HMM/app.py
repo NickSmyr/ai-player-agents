@@ -151,7 +151,7 @@ class FishingDerbyApp(App, SettingLoader, Communicator):
         :return:
         """
         n_seq = self.observations_sequence["n_seq"]
-        self.total_time = n_seq * 10 * 1.0 / self.settings.frames_per_second
+        self.total_time = n_seq * 10 * 1.2 / self.settings.frames_per_second
         self.time_board = TimeBoard(seconds=int(self.total_time))
 
         self.time_board.pos_hint['center_x'] = 0.5

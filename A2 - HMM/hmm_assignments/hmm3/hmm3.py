@@ -3,6 +3,7 @@ from sys import stderr
 
 import numpy as np
 
+# from hmm3_deliverable import HMM
 from hmm import HMM
 
 
@@ -22,7 +23,10 @@ if __name__ == '__main__':
         _hmm_gt, _ = HMM.from_input(_output)
         _output.close()
         #   - output best model estimate
-        _hmm.baum_welch(_observations, tol=1e-6, max_iter=50, A_gt=_hmm_gt.A)
+        if hasattr(_hmm, 'baum_welch'):
+            _hmm.baum_welch(_observations, tol=1e-6, max_iter=50)
+        else:
+            _hmm.train(_observations, p_tol=1e-6, max_iter=50)
         #   - compare output to ground truth
         #   - (a) Assert Equal to the Ground Truth
         # assert A_opt.__str__(round_places=6) == _hmm_gt.A.__str__(round_places=6), \

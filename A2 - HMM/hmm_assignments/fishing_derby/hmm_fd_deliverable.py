@@ -1,16 +1,19 @@
 import abc
+import fileinput
 import math
 import random
 import sys
-from typing import Tuple, Optional, List
+from copy import deepcopy
+from typing import Optional, Tuple, List
 
 from constants import *
 from player_controller_hmm import PlayerControllerHMMAbstract
 
-N_HIDDEN = 1
-WARMUP_STEPS = 75
-N_MODELS = N_SPECIES
-P_THRESHOLD = 1 / N_SPECIES
+N_HIDDEN_HC = 13
+N_HIDDEN_LC = 3
+WARMUP_STEPS = N_STEPS - N_FISH
+NEXT_FISH_POLICY = 'random'
+NEXT_FISH_POLICY_MAX = 20
 eps = sys.float_info.epsilon
 
 
@@ -69,8 +72,8 @@ class TNList(list):
     def hadamard(self, l2: 'TNList') -> 'TNList':
         raise NotImplementedError
 
-    def copy(self):
-        return self.data.copy()
+    def copy(self) -> 'TNList':
+        return self.__class__(deepcopy(self.data))
 
 
 class Vector(TNList):
@@ -84,7 +87,7 @@ class Vector(TNList):
         if type(data[0]) == int and dtype == float:
             data = [float(d) for d in data]
         # Assert input is a 1-d list
-        assert type(data[0]) == dtype, f'Input not a {dtype} vector (type(data[0])={type(data[0])} | dtype={dtype})'
+        # assert type(data[0]) == dtype, f'Input not a {dtype} vector (type(data[0])={type(data[0])} | dtype={dtype})'
         # Initialize wrapper
         TNList.__init__(self, data=data)
         self.n = len(self.data)
@@ -130,7 +133,7 @@ class Vector(TNList):
         :param Vector v2: the second vector
         :return: a scalar result as a float
         """
-        assert self.n == v2.n, 'Vector dims must be equal'
+        # assert self.n == v2.n, 'Vector dims must be equal'
         return sum([self.data[i] * v2.data[i] for i in range(self.n)])
 
     def hadamard(self, v2: 'Vector' or list) -> 'Vector':
@@ -185,6 +188,11 @@ class Vector(TNList):
         return Vector([c / number for c in self.data])
 
     @staticmethod
+    def from_str(line: str):
+        line_data = [x for x in line.rstrip().split(" ")]
+        return Vector([float(lj) for lj in line_data])
+
+    @staticmethod
     def random(n: int, normalize: bool = False) -> 'Vector':
         """
         Get a vector with elements drawn from a Uniform[0,1] distribution.
@@ -209,8 +217,8 @@ class Matrix2d(TNList):
         if type(data[0][0]) == int:
             data = [[float(c) for c in r] for r in data]
         # Assert input is an orthogonal matrix
-        assert len(data) == 1 or len(data[1]) == len(data[0]), f'Dims not match len(data[0])={len(data[0])}, ' \
-                                                               f'len(data[1])={len(data[1])}'
+        # assert len(data) == 1 or len(data[1]) == len(data[0]), f'Dims not match len(data[0])={len(data[0])}, ' \
+        #                                                        f'len(data[1])={len(data[1])}'
         TNList.__init__(self, data=data)
         self.data: list
         self.nrows = len(self.data)
@@ -267,7 +275,7 @@ class Matrix2d(TNList):
         """
         # Matrix-matrix multiplication
         if type(m2) == Matrix2d:
-            assert self.ncols == m2.nrows, f'Matrix dimensions must agree ({self.ncols} != {m2.nrows})'
+            # assert self.ncols == m2.nrows, f'Matrix dimensions must agree ({self.ncols} != {m2.nrows})'
             return Matrix2d([[sum(ri * cj for ri, cj in zip(r, c)) for c in zip(*m2.data)] for r in self.data])
         # Matrix-vector multiplication
         # assert self.ncols == m2.n, f'Matrix dimensions must agree ({self.ncols} != {m2.n})'
@@ -340,6 +348,16 @@ class Matrix2d(TNList):
         return np.allclose(np.array(self.data), np.array(m2.data), rtol=tol, atol=tol)
 
     @staticmethod
+    def from_str(line: str):
+        line_data = [x for x in line.rstrip().split(" ")]
+        nrows = int(line_data.pop(0))
+        ncols = int(line_data.pop(0))
+        # assert nrows * ncols == len(line_data), f'Given numbers of elements do not match ' \
+        #                                         f'((nrows,ncols)={(nrows, ncols)} | len(line_data)={len(line_data)})'
+        return Matrix2d([[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)])
+
+    # noinspection PyUnusedLocal
+    @staticmethod
     def random(nrows: int, ncols: int, row_stochastic: bool = True) -> 'Matrix2d':
         """
         Initialize a 2d matrix with elements from uniform random in [0,1]
@@ -350,8 +368,8 @@ class Matrix2d(TNList):
         """
         # TODO: better initialization than this one
         m = Matrix2d([[
-            1 * (1. / ncols)
-            + 0.01 * (1. if ci == ri else 0.)
+            1. * (1. / ncols)
+            # + 0.01 * (1. if ci == ri else 0.)
             + 0.001 * random.random()
             for ci in range(ncols)] for ri in range(nrows)])
         if row_stochastic:
@@ -365,24 +383,54 @@ class HMM:
     Our implementation of a 1-st order Hidden Markov Model.
     """
 
-    def __init__(self, N: int, K: int, A: Optional[Matrix2d] = None, B: Optional[Matrix2d] = None,
-                 pi: Optional[Vector] = None):
+    def __init__(self, N: int, K: int, ):
         """
         HMM class constructor.
         :param int N: number of hidden states
         :param int K: number of emission types
-        :param (optional) A: the transmission model matrix
-        :param (optional) B: the observation model matrix
-        :param (optional) pi: the initial states pfm
         """
-        # Random intialization
-        self.A = A if A is not None else Matrix2d.random(N, N, row_stochastic=True)
-        self.A_transposed = self.A.T
-        self.B = B if B is not None else Matrix2d.random(N, K, row_stochastic=True)
-        self.B_transposed = self.B.T
-        self.pi = pi if pi is not None else Vector.random(N, normalize=True) if pi is None else pi
         self.N = N
         self.K = K
+        self.label = None
+        self.A = None
+        self.A_transposed = None
+        self.B = None
+        self.B_transposed = None
+        self.pi = None
+        self.last_fish_id = None
+        self.last_i = None
+        self.last_ll = None
+
+    def initialize_static(self, A: Matrix2d, B: Matrix2d, pi: Vector) -> None:
+        """
+        Initialize model matrices from given ones.
+        :param Matrix2d A:
+        :param Matrix2d B:
+        :param Vector pi:
+        """
+        self.A = A.normalize_rows()
+        self.A_transposed = self.A.T
+        self.B = B.normalize_rows()
+        self.B_transposed = self.B.T
+        if pi is None:
+            pi = Vector([1. / self.N] * self.N)
+        self.pi = pi.normalize()
+
+    def initialize(self, globalB: list, label: Optional[int] = None) -> None:
+        """
+        Initializes model matrices before training.
+        :param list globalB: of shape (1,K)
+        :param int label: e.g. the gt fish_type that this HMM instance is assumed to recognize
+        """
+        # Initialize B from observations
+        B = Matrix2d([globalB.copy() for _ in range(self.N)])
+        # Initialize A, pi
+        A = Matrix2d.random(self.N, self.N, row_stochastic=True)
+        pi = Vector.random(self.N, normalize=True)
+        self.initialize_static(A=A, B=B, pi=pi)
+        #   - set ground-truth label
+        if label is not None:
+            self.label = label
 
     def alpha_pass(self, observations: list, T: Optional[int] = None) -> float:
         """
@@ -412,8 +460,8 @@ class HMM:
         return alpha.sum()
 
     def alpha_pass_scaled(self, observations: list, A_T: Optional[Matrix2d] = None, B_T: Optional[Matrix2d] = None,
-                          pi: Optional[Vector] = None,
-                          T: Optional[int] = None) -> Tuple[float, List[Vector], List[float]]:
+                          pi: Optional[Vector] = None, T: Optional[int] = None) \
+            -> Tuple[float, List[Vector], List[float]]:
         """
         Perform a forward pass to compute the likelihood of an observation sequence.
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
@@ -431,8 +479,6 @@ class HMM:
             B_T = self.B_transposed
         if T is None:
             T = len(observations)
-        # if T == 1:
-        #     return 0., [], []
         # Initialize alpha
         alpha = pi.hadamard(B_T[observations[0]])
         # if alpha_tm1_sum == 0.0:
@@ -440,6 +486,7 @@ class HMM:
         c = 1 / (alpha.sum() + eps)
         # Store alphas (and Cs) in memory
         cs = [c, ]
+        cs_log_sum = math.log10(c)
         #   - scale a_0
         alpha *= c
         alphas = [alpha, ]
@@ -458,12 +505,13 @@ class HMM:
             #   - append to list
             alphas.append(alpha)
             cs.append(c)
+            cs_log_sum += math.log10(c)
             # alpha_tm1 = alpha
         # Return likelihood (sum of last alpha vec) and the recorded alphas
-        return -Vector(cs).log_sum(), alphas, cs
+        return -cs_log_sum, alphas, cs
 
-    def beta_pass_scaled(self, observations: list, cs: Optional[List] = None, A: Optional[Matrix2d] = None,
-                         B_T: Optional[Matrix2d] = None, T: Optional[int] = None) -> Tuple[float, List[Vector]]:
+    def beta_pass_scaled(self, observations: list, A: Optional[Matrix2d], B_T: Optional[Matrix2d],
+                         cs: Optional[List] = None, T: Optional[int] = None) -> Tuple[float, List[Vector]]:
         """
         Perform a backward pass as another way to compute the likelihood of an observation sequence.
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
@@ -482,35 +530,65 @@ class HMM:
         # if T == 1:
         #     return 0., []
         # Initial beta is beta_{T-1}
+        # if cs is None:
+        #     cs = [1.] * T
+        # beta_tp1 = Vector([cs[-1]] * self.N)
+        # betas = [beta_tp1, ]
+        # # Iterate through reversed time
+        # for t in range(T - 2, -1, -1):
+        #     #   - compute beta_t
+        #     beta_t = A @ beta_tp1.hadamard(B_T[observations[t + 1]])
+        #     #   - scale beta_t[i]
+        #     beta_t *= cs[t]
+        #     #   - append to betas list
+        #     betas.append(beta_t)
+        #     #   - save for next iteration
+        #     beta_tp1 = beta_t
+        #
+        # # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
+        # betas.reverse()
+        # # Return likelihood, betas
+        # return 0., betas
         if cs is None:
             cs = [1.] * T
         beta_tp1 = Vector([cs[-1]] * self.N)
         betas = [beta_tp1, ]
-        # Iterate through reversed time
+
         for t in range(T - 2, -1, -1):
+            # O_tp1 = observations[t+1]
             #   - compute beta_t
-            beta_t = A @ B_T[observations[t + 1]]
-            beta_t = beta_t.hadamard(beta_tp1)
+            beta_t = A @ beta_tp1.hadamard(B_T[observations[t + 1]])
+            # beta_t = [0.] * self.N
+            # for i in range(self.N):
+            #     #   - compute beta_t[i]
+            #     for j in range(self.N):
+            #         beta_t[i] += self.A[i][j]*self.B[j][O_tp1]* beta_tp1[j]
             #   - scale beta_t[i]
             beta_t *= cs[t]
             #   - append to betas list
             betas.append(beta_t)
             #   - save for next iteration
             beta_tp1 = beta_t
+        # for t in range(T - 2, -1, -1):
+        #     beta = self.A @ self.B.get_col(observations[t + 1]).hadamard(beta)
+        #     beta /= cs[t]
+        #     betas.append(beta)
+        # beta_{-1} Used only for testing purposes
+        # betas.append(beta.hadamard(self.pi).hadamard(self.B.get_col(observations[0])))
         # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
         betas.reverse()
         # Return likelihood, betas
-        return 0., betas
+        return betas[0].sum(), betas
 
-    def gamma_pass(self, observations: list, alphas: Optional[List[Vector]] = None, cs: Optional[list] = None,
-                   A: Optional[Matrix2d] = None, B_T: Optional[Matrix2d] = None,
-                   T: Optional[int] = None) -> Tuple[List[Vector], List[Matrix2d]]:
+    def gamma_pass_scaled(self, observations: list, A: Optional[Matrix2d], B_T: Optional[Matrix2d],
+                          alphas: List[Vector], betas: List[Vector],
+                          T: Optional[int] = None) -> Tuple[List[Vector], List[Matrix2d]]:
         """
         Implementation of Baum-Welch algorithm's Gamma Pass to compute gammas & digammas (i.e. prob of being in state i
         at time t and moving to state j at time t+1).
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
         :param (optional) alphas: output from alpha_pass
-        :param (optional) cs: output from alpha_pass
+        :param (optional) betas: output from alpha_pass
         :param Matrix2d or None A: Transmission Matrix
         :param Matrix2d or None B_T: Emission Matrix TRANSPOSED
         :param (optional) T: total number of observations (in case list was pre-initialized but not fully filled)
@@ -522,35 +600,56 @@ class HMM:
             B_T = self.B_transposed
         if T is None:
             T = len(observations)
-        # if T == 1:
-        #     return [], []
         # 1. Get alpha_t and beta_t for all t=0,...,T-1
-        if alphas is None:
-            _, alphas, cs = self.alpha_pass_scaled(observations, T=T)
-        _, betas = self.beta_pass_scaled(observations, cs=cs, T=T)
+        # if alphas is None:
+        #     _, alphas, cs = self.alpha_pass_scaled(observations, T=T)
+        # _, betas = self.beta_pass_scaled(observations, cs=cs, T=T)
         # 2. Compute digammas and gammas for every t
-        gammas, digammas = [], []
+        # gammas = []
+        # digammas = []
+        # for t in range(T - 1):
+        #     #   - compute digamma_t
+        #     digamma = A.hadamard(alphas[t].outer(
+        #         betas[t + 1].hadamard(B_T[observations[t + 1]])
+        #     ))
+        #     digammas.append(digamma)
+        #     #   - marginalize over i (rows) to compute gamma_t
+        #     gammas.append(digamma.sum_rows())
+        # # Add last gamma for time step T
+        # gammas.append(alphas[-1])
+        # return gammas, digammas
+        gammas = []
+        digammas = []
+        # We need one digamma for every t
         for t in range(T - 1):
-            #   - compute digamma_t
-            digamma = A.hadamard(alphas[t].outer(
-                betas[t + 1].hadamard(B_T[observations[t + 1]])
-            ))
+            digamma = A.hadamard(
+                alphas[t].outer(
+                    betas[t + 1].hadamard(B_T[observations[t + 1]])
+                )
+            )
+            # digamma /= ll
             digammas.append(digamma)
-            #   - marginalize over i (rows) to compute gamma_t
             gammas.append(digamma.sum_rows())
+
+            # temp_matrix = alphas[t].outer(self.B.get_col(observations[t + 1]).hadamard(betas[t + 1]))
+            # curr_digamma = self.A.hadamard(temp_matrix).apply_func(lambda x: x / ll)
+            # digammas.append(curr_digamma)
+            # gammas.append(curr_digamma.sum_rows())
+            # assert all([[abs(c1 - c2) < 1e-10 for c1, c2 in zip(r1, r2)]
+            #             for r1, r2 in zip(digamma.data, curr_digamma.data)])
+
         # Add last gamma for time step T
         gammas.append(alphas[-1])
         return gammas, digammas
 
-    def reestimate(self, observations: list, gammas: List[Vector], digammas: List[Matrix2d], lambda_mix: float = 1.0,
-                   T: Optional[int] = None) -> Tuple[Optional[Vector], Optional[Matrix2d], Optional[Matrix2d]]:
+    def reestimate(self, observations: list, gammas: List[Vector], digammas: List[Matrix2d],
+                   T: Optional[int] = None, ) -> Tuple[Vector, Matrix2d, Matrix2d]:
         """
         Implementation of Baum-Welch algorithm's parameters re-estimation using computed gammas and digammas.
         Source: A Revealing Introduction to Hidden Markov Models, Mark Stamp
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
         :param list gammas: computed from gamma_pass()
         :param list digammas: computed from gamma_pass()
-        :param float lambda_mix: model averaging weight (A = newA * lambda_mix + A * (1.0-lambda_mix))
         :param (optional) T: total number of observations (in case list was pre-initialized but not fully filled)
         :return: a tuple containing the new pi, A, B as Vector, Matrix2d, Matrix2d objects respectively
         """
@@ -562,75 +661,196 @@ class HMM:
         # Reestimate pi
         pi = gammas[0]
         for i in rN:
-            # Compute (almost) common denominator
-            denom = sum(gammas[t][i] for t in rT1)
+            # # Compute (almost) common denominator
+            # denom = sum(gammas[t][i] for t in rT1)
+            #
+            # # Reestimate A
+            # A[i] = [0. for _ in rN] if denom == 0.0 else \
+            #     [sum(digammas[t][i][j] for t in rT1) / denom for j in rN]
+            #
+            # # Reestimate B
+            # denom += gammas[T - 1][i]
+            # B[i] = [0. for _ in rK] if denom == 0.0 else \
+            #     [sum(gammas[t][i] for t in range(T) if observations[t] == j) / denom for j in rK]
+            denom = 0.
+            for t in range(T - 1):
+                denom += gammas[t][i]
             # Reestimate A
-            A[i] = [0. for _ in rN] if denom == 0.0 else \
-                [sum(digammas[t][i][j] for t in rT1) / denom for j in rN]
+            for j in range(self.N):
+                numer = 0.
+                for t in range(T - 1):
+                    numer += digammas[t][i][j]
+                A[i][j] = numer / denom
             # Reestimate B
             denom += gammas[T - 1][i]
-            B[i] = [0. for _ in rK] if denom == 0.0 else \
-                [sum(gammas[t][i] for t in range(T) if observations[t] == j) / denom for j in rK]
+            for j in range(self.K):
+                numer = 0.
+                for t in range(T):
+                    if observations[t] == j:
+                        numer += gammas[t][i]
+                B[i][j] = numer / denom
 
         # Normalize model parameters and return
-        pi, A, B = Vector(pi), Matrix2d(A), Matrix2d(B)
-        if lambda_mix == 1.0:
-            return pi, A, B
-        # Mix
-        return pi * lambda_mix + self.pi * (1 - lambda_mix), A * lambda_mix + self.A * (1 - lambda_mix), \
-               B * lambda_mix + self.B * (1 - lambda_mix)
+        return Vector(pi), Matrix2d(A), Matrix2d(B)
 
-    def baum_welch(self, observations: list, tol: float = 1e-3, max_iter: int = 30, T: Optional[int] = None,
-                   update_params: bool = True, lambda_mix: float = 1.0) -> Optional[Tuple[Vector, Matrix2d, Matrix2d]]:
+    def train(self, observations: list, max_iter: int = 100, p_tol: float = 1e-6, T: Optional[int] = None):
         """
         Implementation of Baum-Welch algorithm to estimate optimal HMM params (A, B) using successive gamma passes and
         re-estimation, until observations likelihood (alpha_pass) converges.
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
-        :param float tol: convergence criterion
+        :param float p_tol: convergence criterion
         :param int max_iter: maximum allowed number of iterations
-        :param (optional) T: total number of observations (in case list was pre-initialized but not fully filled)
-        :param bool update_params:
-        :param float lambda_mix:
-        :return: a tuple object containing the (pi, A, B) matrices of the converged model
-                 or None if update_params was set to True
+        :param (optional) T: total number of time steps
+        :return: a tuple object containing the (A, B, final_likelihood) matrices of the converged model
         """
+        A = self.A.copy()
+        A_T = A.T
+        B = self.B.copy()
+        B_T = B.T
+        pi = self.pi.copy()
         if T is None:
             T = len(observations)
-        A = self.A
-        A_T = self.A_transposed
-        B = self.B
-        B_T = self.B_transposed
-        pi = self.pi
+
         old_ll, ll, i = -math.inf, 0., 0
-        while i < max_iter and ll > old_ll:
-            # Forward pass -> alpha_t for t=0,...,T-1
-            # alphas[t][i] ~ P(O_{0,...,t-1}, Xt=i | model)
-            ll, alphas, cs = self.alpha_pass_scaled(observations, pi=pi, A_T=A_T, B_T=B_T, T=T)
-            # Backward pass -> beta_t for t=0,...,T-1
-            # betas[t][i] ~ P(O_{t,...,T-1} | Xt=i, model)
-            _, beta = self.beta_pass_scaled(observations, cs=cs, A=A, B_T=B_T, T=T)
-            # Combine to compute state probabilities -> gamma_t for t=0,...,T-1
-            # digammas[t][i, j] ~ P(Xt=i, Xt+1=j | O_{t,...,T-1}, model)
-            # gammas[t][i] ~ P(Xt=i | O_{t,...,T-1}, model)
-            gammas, digammas = self.gamma_pass(observations, cs=cs, A=A, B_T=B_T, T=T)
-            # Reestimate model parameters based on new state probabilities
-            pi, A, B = self.reestimate(observations, gammas=gammas, digammas=digammas, lambda_mix=lambda_mix, T=T)
-            A_T, B_T = A.T, B.T
-            # Next Baum-Welch iteration (+ checks for convergence)
-            i += 1
-            if i == 1:
-                continue
-            elif i > 2 and abs(ll - old_ll) <= tol:
+        for i in range(max_iter):
+            ll, alphas, cs = self.alpha_pass_scaled(observations, A_T=A_T, B_T=B_T, pi=pi, T=T)
+            _, betas = self.beta_pass_scaled(observations, A=A, B_T=B_T, cs=cs, T=T)
+            #   - compute gammas
+            gammas, digammas = self.gamma_pass_scaled(observations, A=A, B_T=B_T, alphas=alphas, betas=betas, T=T)
+            #   - update model
+            pi, A, B = self.reestimate(observations=observations, gammas=gammas, digammas=digammas)
+            ll_diff = ll - old_ll
+            if ll_diff < 0:
+                print(f'[baum_welch][i={i:02d}] old_ll > ll Negative', file=sys.stderr)
                 break
+            elif ll_diff < math.exp(p_tol):
+                break
+            A_T = A.T
+            B_T = B.T
             old_ll = ll
+
         # Update parameters and return
-        if not update_params:
-            return pi, A, B
-        self.pi = pi
-        self.A = A
-        self.A_transposed = A.T
-        self.B = B
-        self.B_transposed = B.T
+        # noinspection PyTypeChecker
+        self.initialize_static(A=A.copy(), B=B.copy(), pi=pi.copy())
+        self.last_i = i
+        self.last_ll = ll
+        return A, B, pi
+
+    @staticmethod
+    def from_input(finput: fileinput.FileInput) -> Tuple['HMM', Optional[List]]:
+        """
+        Initialize a new HMM instance using input provided in the form of Kattis text files.
+        :param FileInput finput: a FileInput instance instantiated from stdin (e.g. by running python file using input
+                                 redirect from a *.in file)
+        :return: an HMM instance
+        """
+        A, B, pi, N, K, obs = None, None, None, None, None, None
+        for i, line in enumerate(finput):
+            if i == 0:
+                A = Matrix2d.from_str(line)
+            elif i == 1:
+                B = Matrix2d.from_str(line)
+                N, K = B.shape
+            elif i == 2:
+                pi = Vector.from_str(line)
+            else:
+                obs = Vector.from_str('1 ' + line).dtype(int).data
+        hmm = HMM(N=N, K=K)
+        hmm.initialize_static(A=A, B=B, pi=pi)
+        return hmm, obs
+
+
+class FishHMM:
+    """
+    FishHMM Class:
+    Subclass of HMM to add functionality regarding fish updates and filtering.
+    """
+
+    def __init__(self, N_lc: int, N_hc: int, index: int):
+        self.index = index
+        self.active = False
+        self.done = False
+        self.n_found = 0
+        self.lc_model = HMM(N=N_lc, K=N_EMISSIONS)
+        self.hc_model = HMM(N=N_hc, K=N_EMISSIONS)
+
+    def initialize(self, b, l=None):
+        self.lc_model.initialize(b, l)
+        self.hc_model.initialize(b, l)
+        self.active = True
+
+    def train(self, f: 'Fish', max_iter: int = 100, p_tol: float = 1e-6) -> None:
+        # Initialize models
+        self.initialize(f.beta)
+        # Train low-capacity model
+        self.lc_model.train(f.obs, max_iter=max_iter, p_tol=p_tol)
+        # Train high-capacity model
+        self.hc_model.train(f.obs, max_iter=max_iter, p_tol=p_tol)
+
+    def infer(self, f: 'Fish') -> float:
+        return max(self.lc_model.alpha_pass_scaled(observations=f.obs)[0],
+                   self.hc_model.alpha_pass_scaled(observations=f.obs)[0])
+
+
+class Fish:
+    """
+    Fish Class:
+    Own implementation of a book-keeping struct to save statistics for each fish.
+    """
+
+    UNEXPLORED = 0
+    EXPLORED = 1
+
+    def __init__(self, index: int):
+        """
+        Fish class constructor.
+        :param int index: fish index
+        """
+        self.index = index
+        self._obs_seq = [-1] * N_STEPS
+        self._t = 0
+        self._state = Fish.UNEXPLORED
+        self._species = None
+        self._beta = [0] * N_EMISSIONS
+
+    @property
+    def obs(self) -> list:
+        return self._obs_seq[:self._t]
+
+    @obs.setter
+    def obs(self, Ot: int) -> None:
+        self._obs_seq[self._t] = Ot
+        self._beta[Ot] += 1
+        self._t += 1
+
+    def get_most_probable(self, models: List[FishHMM], return_prob: bool = False):
+        max_prob, max_mi = -math.inf, None
+        for m in models:
+            if m.active:
+                prob = m.infer(self)
+                if prob > max_prob:
+                    max_prob = prob
+                    max_mi = m.index
+        # assert max_mi is not None
+        if max_mi is None:
+            max_mi = random.randint(0, N_SPECIES - 1)
+        if return_prob:
+            return max_prob, max_mi
+        return max_mi
+
+    @property
+    def species(self) -> int:
+        return self._species
+
+    @species.setter
+    def species(self, si: int) -> None:
+        self._species = si
+        self._state = Fish.EXPLORED
+
+    @property
+    def beta(self) -> list:
+        return [1. / self._t for _ in range(N_EMISSIONS)]
+        # return [float(b) / self._t + 0.1 * random.random() for b in self._beta]
 
 
 class PlayerControllerHMM(PlayerControllerHMMAbstract):
@@ -647,11 +867,10 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
     """
 
     def __init__(self):
+        self.fishes = None
         self.models = None
-        self.unexplored_fishes = None
-        self.active_models = None
-        self.obs_seq = None
-        self.t = None
+        self.unexplored_fis = None
+        self.active_mis = None
         super().__init__()
 
     def init_parameters(self):
@@ -659,10 +878,41 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         In this function you should initialize the parameters you will need,
         such as the initialization of models, or fishes, among others.
         """
-        self.models = [HMM(N=N_HIDDEN, K=N_EMISSIONS) for _ in range(N_MODELS)]
-        self.unexplored_fishes = list(range(N_FISH))
-        self.active_models = set()
-        self.obs_seq = [[] for _ in range(N_FISH)]
+        self.fishes = [Fish(index=fi) for fi in range(N_FISH)]
+        self.models = [FishHMM(N_hc=N_HIDDEN_HC, N_lc=N_HIDDEN_LC, index=mi) for mi in range(N_SPECIES)]
+        self.unexplored_fis = set(list(range(N_FISH)))
+        self.active_mis = set()
+
+    def pick_next_fish(self, policy: str = NEXT_FISH_POLICY) -> Tuple[int, Optional[int]]:
+        """
+        TODO
+        :param policy:
+        :return:
+        """
+        if policy == 'random':
+            fo: Fish = self.fishes[random.choice(tuple(self.unexplored_fis))]
+            return fo.index, fo.get_most_probable(self.models)
+        if policy == 'sequential':
+            fi = tuple(self.unexplored_fis)[0]
+            fo: Fish = self.fishes[fi]
+            return fo.index, fo.get_most_probable(self.models)
+        if policy == 'max_all':
+            # pick a fish from the unexplored ones STRATEGICALLY
+            max_fi, max_fi_pred, max_fi_prob, counter = None, None, -math.inf, 0
+            for fi in self.unexplored_fis:
+                fo: Fish = self.fishes[fi]
+                fi_prob, fi_mi = fo.get_most_probable(self.models, return_prob=True)
+                if fi_prob > max_fi_prob:
+                    max_fi = fi
+                    max_fi_prob = fi_prob
+                    max_fi_pred = fi_mi
+                counter += 1
+                if counter >= NEXT_FISH_POLICY_MAX:
+                    break
+            if max_fi is not None:
+                # assert not math.isinf(max_fi_pred) and max_fi in self.unexplored_fis
+                return max_fi, max_fi_pred
+            return self.pick_next_fish('random')
 
     def guess(self, step, observations):
         """
@@ -674,18 +924,15 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         :return: None or a tuple (fish_id, fish_type)
         """
         # Store observations
-        for fi in range(N_FISH):
-            self.obs_seq[fi].append(observations[fi])
-        # assert all(ot == self_ot for ot, self_ot in zip(observations, Matrix2d(self.obs_seq).get_col(self.t - 1)))
+        for fi in self.unexplored_fis:
+            fo: Fish = self.fishes[fi]
+            fo.obs = observations[fi]
         # If we have enough data to start training, start the guessing procedure
-        if step >= WARMUP_STEPS:
-            #   - pick a fish from the unexplored ones randomly
-            # fi = self.unexplored_fishes.pop(random.randint(0, len(self.unexplored_fishes) - 1))
-            fi = self.unexplored_fishes.pop()
-            #   - pass its observation sequence through all the models and select the most active one
-            fi_probs = [model.alpha_pass_scaled(self.obs_seq[fi]) for model in self.models]
-            # print(f'fi_probs={fi_probs}', file=stderr)
-            return fi, argmax(fi_probs)[1]
+        if step == WARMUP_STEPS:
+            return random.randint(0, N_FISH - 1), random.randint(0, N_SPECIES - 1)
+        # pick a fish from the unexplored ones using the pre-described policy
+        elif step > WARMUP_STEPS:
+            return self.pick_next_fish(policy=NEXT_FISH_POLICY)
 
     def reveal(self, correct, fish_id, true_type):
         """
@@ -697,7 +944,25 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         :param true_type: the correct type of the fish
         :return:
         """
-        # Retrain model only if it made a wrong prediction
-        if true_type not in self.active_models or not correct:
-            self.active_models.add(true_type)
-            self.models[true_type].baum_welch(self.obs_seq[fish_id], max_iter=30, tol=1e-8, update_params=True)
+        fo: Fish = self.fishes[fish_id]
+        model: FishHMM = self.models[true_type]
+        if model.done:
+            return
+
+        # Update fish
+        fo.species = true_type
+        self.unexplored_fis.remove(fish_id)
+        print(f'[reveal] fi={fish_id} | true_type={true_type} | correct={correct}', file=sys.stderr)
+
+        # Check if model is done
+        if model.n_found == (N_FISH / N_SPECIES - 1):
+            self.active_mis.remove(true_type)
+            model.done = True
+            model.active = False
+            return
+
+        # Train model using the fish's observation sequence
+        if (true_type not in self.active_mis and not self.models[true_type].done) or not correct:
+            self.active_mis.add(true_type)
+            model.n_found += 1
+            model.train(f=fo, max_iter=40, p_tol=1e-6)

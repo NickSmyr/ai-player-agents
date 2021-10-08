@@ -5,6 +5,7 @@ class PlayerControllerHMMAbstract(PlayerController):
     def __init__(self):
         super().__init__()
         self.__name2id = dict()
+        self.total_guess_count = 0
 
     def player_loop(self):
         """
@@ -38,10 +39,14 @@ class PlayerControllerHMMAbstract(PlayerController):
                     observations[self.__name2id[key]] = msg[key]
 
             guess_result = self.guess(count, observations)
+            print(f'{count}/180')
             if guess_result is None:
                 msg = {'guessing': False}
                 self.sender(msg)
             elif type(guess_result) is tuple:
+                self.total_guess_count += 1
+                print(f'{self.total_guess_count}/70')
+
                 fish_id, fish_type = guess_result
                 msg = {'guessing': True, 'id': fish_id, 'type': fish_type}
                 self.sender(msg)

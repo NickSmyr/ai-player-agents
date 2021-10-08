@@ -1,10 +1,61 @@
 import abc
 import math
 import random
+from copy import deepcopy
 from typing import Tuple, List
 
 
-class TNList(list, metaclass=abc.ABCMeta):
+def argmax(l: list) -> Tuple[float, int]:
+    """
+    Find the maximum value and also return the argmax from a list of floats.
+    :param list l: input list of floats
+    :return: a tuple object containing the (max, argmax) as float and int respectively
+    """
+    return max(zip(l, range(len(l))))
+
+
+def join_lists(l1: list, l2: list) -> list:
+    """
+    Joins two list by first aligning them on their closest common element.
+    :param list l1: first list
+    :param list l2: second list
+    :return: the concatenated list
+    """
+    l = min(len(l1), max(l2))
+
+    def get_crop_indices(_l1, _l2, _l, force: bool = False):
+        for radius in range(1, (_l // 2 + 1) if force is False else _l):
+            for r1 in range(-1, -radius - 1, -1):
+                if -r1 == radius:
+                    for r2 in range(0, -r1):
+                        if _l1[r1] == _l2[r2]:
+                            return r1 + 1, r2
+                else:
+                    r2 = radius - 1
+                    if _l1[r1] == _l2[r2]:
+                        return r1 + 1, r2
+        return None, None
+
+    # Find index
+    #  - try l1 first
+    which_first = 0
+    crop_from_or_until_l1, crop_from_or_until_l2 = get_crop_indices(l1, l2, l)
+    if crop_from_or_until_l1 is None:
+        crop_from_or_until_l2, crop_from_or_until_l1 = get_crop_indices(l2, l1, l, force=True)
+        if crop_from_or_until_l2 is None:
+            # FAILED: No common element to join
+            return l1 if len(l1) > len(l2) else l2
+        which_first = 1
+
+    # Join lists
+    l1_cropped = l1.copy()[crop_from_or_until_l1 + 1:] if crop_from_or_until_l1 >= 0 else \
+        l1.copy()[:crop_from_or_until_l1]
+    l2_cropped = l2.copy()[crop_from_or_until_l2 + 1:] if crop_from_or_until_l2 >= 0 else \
+        l2.copy()[:crop_from_or_until_l2]
+    return l1_cropped + l2_cropped if which_first == 0 else l2_cropped + l1_cropped
+
+
+class TNList(list):
     def __init__(self, data: list):
         self.data = data
         list.__init__(self)
@@ -50,8 +101,8 @@ class TNList(list, metaclass=abc.ABCMeta):
     def hadamard(self, l2: 'TNList') -> 'TNList':
         raise NotImplementedError
 
-    def copy(self):
-        return self.data.copy()
+    def copy(self) -> 'TNList':
+        return self.__class__(deepcopy(self.data))
 
 
 class Vector(TNList):
@@ -166,18 +217,14 @@ class Vector(TNList):
         return Vector([c / number for c in self.data])
 
     @staticmethod
-    def _from_str_get_list(line: str) -> list:
+    def from_str(line: str):
         line_data = [x for x in line.rstrip().split(" ")]
         nrows = int(line_data.pop(0))
         assert nrows == 1, f'Vector should be row-vectors (nrows={nrows})'
         ncols = int(line_data.pop(0))
         assert ncols == len(line_data), f'Given numbers of elements do not match (ncols={ncols} | ' \
                                         f'len(line_data)={len(line_data)})'
-        return [float(lj) for lj in line_data]
-
-    @staticmethod
-    def from_str(line: str) -> 'Vector':
-        return Vector(Vector._from_str_get_list(line=line))
+        return Vector([float(lj) for lj in line_data])
 
     @staticmethod
     def random(n: int, normalize: bool = False) -> 'Vector':
@@ -191,12 +238,6 @@ class Vector(TNList):
         if normalize:
             v.normalize()
         return v
-
-
-class DeltaVector(Vector):
-    def __init__(self, data: List[Tuple[float, int]]):
-        Vector.__init__(self, data=[t[0] for t in data])
-        self.argmax_data = [t[1] for t in data]
 
 
 class Matrix2d(TNList):
@@ -341,17 +382,13 @@ class Matrix2d(TNList):
         return np.allclose(np.array(self.data), np.array(m2.data), rtol=tol, atol=tol)
 
     @staticmethod
-    def _from_str_get_list(line: str) -> list:
+    def from_str(line: str):
         line_data = [x for x in line.rstrip().split(" ")]
         nrows = int(line_data.pop(0))
         ncols = int(line_data.pop(0))
         assert nrows * ncols == len(line_data), f'Given numbers of elements do not match ' \
                                                 f'((nrows,ncols)={(nrows, ncols)} | len(line_data)={len(line_data)})'
-        return [[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)]
-
-    @staticmethod
-    def from_str(line: str) -> 'Matrix2d':
-        return Matrix2d(Matrix2d._from_str_get_list(line=line))
+        return Matrix2d([[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)])
 
     @staticmethod
     def random(nrows: int, ncols: int, row_stochastic: bool = True) -> 'Matrix2d':
@@ -364,19 +401,16 @@ class Matrix2d(TNList):
         """
         # TODO: better initialization than this one
         m = Matrix2d([[
-            1 * (1. / ncols)
+            1. * (1. / ncols)
             + 0.01 * (1. if ci == ri else 0.)
-            + 0.001 * random.random()
+            + 0.005 * random.random()
             for ci in range(ncols)] for ri in range(nrows)])
         if row_stochastic:
             m.normalize_rows()
         return m
 
 
-def argmax(l: list) -> Tuple[float, int]:
-    """
-    Find the maximum value and also return the argmax from a list of floats.
-    :param list l: input list of floats
-    :return: a tuple object containing the (max, argmax) as float and int respectively
-    """
-    return max(zip(l, range(len(l))))
+class DeltaVector(Vector):
+    def __init__(self, data: List[Tuple[float, int]]):
+        Vector.__init__(self, data=[t[0] for t in data])
+        self.argmax_data = [t[1] for t in data]
