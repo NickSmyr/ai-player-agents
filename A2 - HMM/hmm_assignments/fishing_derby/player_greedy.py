@@ -96,7 +96,7 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         if not correct:
             new_model = HMM(N=N_HIDDEN, K=N_EMISSIONS)
             new_model.initialize(self.obs_count[fish_id], label=true_type)
-            new_model.train(fish_obs_seq, max_iter=30, p_tol=1e-6)
+            new_model.train(fish_obs_seq, max_iters=30, p_tol=1e-6)
             self.models.append(new_model)
         # Prediction was correct: do nothing
         #   -> after warmup steps, retrain model every 10 steps

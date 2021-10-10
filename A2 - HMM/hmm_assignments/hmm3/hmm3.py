@@ -5,6 +5,7 @@ import numpy as np
 
 # from hmm3_deliverable import HMM
 from hmm import HMM
+from hmm_assignments.hmmc.hmmc import plot_learning_curves
 
 
 def close(t1, t2, tol: float):
@@ -26,7 +27,15 @@ if __name__ == '__main__':
         if hasattr(_hmm, 'baum_welch'):
             _hmm.baum_welch(_observations, tol=1e-6, max_iter=50)
         else:
-            _hmm.train(_observations, p_tol=1e-6, max_iter=50)
+            _, _, _, A_diff, B_diff, pi_diff, A_diff_init, B_diff_init, pi_diff_init = \
+                _hmm.train(_observations, p_tol=1e-6, max_iters=50, hmm_gt=_hmm_gt, dist='l1')
+            last_i, last_ll = _hmm.last_i, _hmm.last_ll
+            # Plot learning curves
+            plot_learning_curves(3, A_diff, B_diff, pi_diff, title='', max_iters=50, last_i=_hmm.last_i,
+                                 last_ll=_hmm.last_ll, show=False)
+            plot_learning_curves(3, A_diff_init, B_diff_init, pi_diff_init, title='title', max_iters=50,
+                                 last_i=_hmm.last_i, last_ll=_hmm.last_ll, secondary=True)
+
         #   - compare output to ground truth
         #   - (a) Assert Equal to the Ground Truth
         # assert A_opt.__str__(round_places=6) == _hmm_gt.A.__str__(round_places=6), \

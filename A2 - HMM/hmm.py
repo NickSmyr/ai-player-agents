@@ -3,6 +3,8 @@ import math
 import sys
 from typing import List, Tuple, Optional
 
+import numpy as np
+
 from hmm_utils import Matrix2d, Vector
 
 eps = sys.float_info.epsilon
@@ -324,26 +326,57 @@ class HMM:
         # Normalize model parameters and return
         return Vector(pi), Matrix2d(A), Matrix2d(B)
 
-    def train(self, observations: list, max_iter: int = 100, p_tol: float = 1e-6, T: Optional[int] = None):
+    # noinspection PyUnboundLocalVariable
+    def train(self, observations: list, max_iters: int = 100, p_tol: float = 1e-6, T: Optional[int] = None,
+              hmm_gt: Optional['HMM'] = None, dist: str = 'l2'):
         """
         Implementation of Baum-Welch algorithm to estimate optimal HMM params (A, B) using successive gamma passes and
         re-estimation, until observations likelihood (alpha_pass) converges.
         :param list observations: {Ot} for t=1...T, where Ot in {0, ..., K}
         :param float p_tol: convergence criterion
-        :param int max_iter: maximum allowed number of iterations
+        :param int max_iters: maximum allowed number of iterations
         :param (optional) T: total number of time steps
+        :param (optional) hmm_gt: hmm_gt to plot the learning curves
+        :param str dist: matrix distance metric
         :return: a tuple object containing the (A, B, final_likelihood) matrices of the converged model
         """
         A = self.A.copy()
+        A_init = A.copy()
         A_T = A.T
         B = self.B.copy()
+        B_init = B.copy()
         B_T = B.T
         pi = self.pi.copy()
+        pi_init = pi.copy()
         if T is None:
             T = len(observations)
 
+        # Check for gt
+        if hmm_gt is not None:
+            A_gt, B_gt, pi_gt = hmm_gt.A, hmm_gt.B, hmm_gt.pi
+            A_diff_gt, B_diff_gt, pi_diff_gt = np.zeros(max_iters + 1, dtype=float), \
+                                               np.zeros(max_iters + 1, dtype=float), \
+                                               np.zeros(max_iters + 1, dtype=float)
+            A_diff_init, B_diff_init, pi_diff_init = np.zeros(max_iters + 1, dtype=float), \
+                                                     np.zeros(max_iters + 1, dtype=float), \
+                                                     np.zeros(max_iters + 1, dtype=float)
+
+            def mat_diff(m1, m2) -> float:
+                amb = np.abs(np.array(m1) - np.array(m2))
+                if dist == 'l2':
+                    return float(np.linalg.norm(amb, ord=None)) ** 2
+                elif dist == 'l1':
+                    return amb.sum()
+
+            A_diff_gt[0] = mat_diff(A, A_gt)
+            A_diff_init[0] = mat_diff(A, A_init)
+            B_diff_gt[0] = mat_diff(B, B_gt)
+            B_diff_init[0] = mat_diff(B, B_init)
+            pi_diff_gt[0] = mat_diff(pi, pi_gt)
+            pi_diff_init[0] = mat_diff(pi, pi_init)
+
         old_ll, ll, i = -math.inf, 0., 0
-        for i in range(max_iter):
+        for i in range(max_iters):
             ll, alphas, cs = self.alpha_pass_scaled(observations, A_T=A_T, B_T=B_T, pi=pi, T=T)
             _, betas = self.beta_pass_scaled(observations, A=A, B_T=B_T, cs=cs, T=T)
             #   - compute gammas
@@ -354,18 +387,30 @@ class HMM:
             if ll_diff < 0:
                 print(f'[baum_welch][i={i:02d}] old_ll > ll Negative', file=sys.stderr)
                 break
-            elif ll_diff < math.exp(p_tol):
+            elif ll_diff < p_tol:
                 break
             A_T = A.T
             B_T = B.T
             old_ll = ll
 
+            # Compare with gt & init
+            if hmm_gt is not None:
+                A_diff_gt[i + 1] = mat_diff(A, A_gt)
+                B_diff_gt[i + 1] = mat_diff(B, B_gt)
+                pi_diff_gt[i + 1] = mat_diff(pi, pi_gt)
+                A_diff_init[i + 1] = mat_diff(A, A_init)
+                B_diff_init[i + 1] = mat_diff(B, B_init)
+                pi_diff_init[i + 1] = mat_diff(pi, pi_init)
+
         # Update parameters and return
         # noinspection PyTypeChecker
         self.initialize_static(A=A.copy(), B=B.copy(), pi=pi.copy())
-        self.last_i = i
+        self.last_i = i + 1
         self.last_ll = ll
-        return A, B, pi
+
+        if hmm_gt is None:
+            return A, B, pi
+        return A, B, pi, A_diff_gt, B_diff_gt, pi_diff_gt, A_diff_init, B_diff_init, pi_diff_init
 
     @staticmethod
     def from_input(finput: fileinput.FileInput) -> Tuple['HMM', Optional[List]]:

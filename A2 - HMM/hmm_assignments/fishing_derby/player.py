@@ -38,9 +38,9 @@ class FishHMM:
         # Initialize models
         self.initialize(f.beta)
         # Train low-capacity model
-        self.lc_model.train(f.obs, max_iter=max_iter, p_tol=p_tol)
+        self.lc_model.train(f.obs, max_iters=max_iter, p_tol=p_tol)
         # Train high-capacity model
-        self.hc_model.train(f.obs, max_iter=max_iter, p_tol=p_tol)
+        self.hc_model.train(f.obs, max_iters=max_iter, p_tol=p_tol)
 
     def infer(self, f: 'Fish') -> float:
         return max(self.lc_model.alpha_pass_scaled(observations=f.obs)[0],

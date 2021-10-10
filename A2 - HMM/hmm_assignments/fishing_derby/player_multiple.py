@@ -147,5 +147,5 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
             # Train all models of the returned species
             for model in self.species_models[true_type]:
                 model.initialize(globalB=self.obs_counts, label=true_type)
-                model.train(self.obs_seq[fish_id], max_iter=30, tol=1e-6)
+                model.train(self.obs_seq[fish_id], max_iters=30, tol=1e-6)
                 model.last_fish_id = fish_id
