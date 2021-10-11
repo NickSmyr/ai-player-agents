@@ -116,7 +116,7 @@ class Vector(TNList):
         if type(data[0]) == int and dtype == float:
             data = [float(d) for d in data]
         # Assert input is a 1-d list
-        assert type(data[0]) == dtype, f'Input not a {dtype} vector (type(data[0])={type(data[0])} | dtype={dtype})'
+        # assert type(data[0]) == dtype, f'Input not a {dtype} vector (type(data[0])={type(data[0])} | dtype={dtype})'
         # Initialize wrapper
         TNList.__init__(self, data=data)
         self.n = len(self.data)
@@ -162,7 +162,7 @@ class Vector(TNList):
         :param Vector v2: the second vector
         :return: a scalar result as a float
         """
-        assert self.n == v2.n, 'Vector dims must be equal'
+        # assert self.n == v2.n, 'Vector dims must be equal'
         return sum([self.data[i] * v2.data[i] for i in range(self.n)])
 
     def hadamard(self, v2: 'Vector' or list) -> 'Vector':
@@ -219,11 +219,9 @@ class Vector(TNList):
     @staticmethod
     def from_str(line: str):
         line_data = [x for x in line.rstrip().split(" ")]
-        nrows = int(line_data.pop(0))
-        assert nrows == 1, f'Vector should be row-vectors (nrows={nrows})'
-        ncols = int(line_data.pop(0))
-        assert ncols == len(line_data), f'Given numbers of elements do not match (ncols={ncols} | ' \
-                                        f'len(line_data)={len(line_data)})'
+        _ = int(line_data.pop(0))
+        n = int(line_data.pop(0))
+        assert len(line_data) == n
         return Vector([float(lj) for lj in line_data])
 
     @staticmethod
@@ -251,8 +249,8 @@ class Matrix2d(TNList):
         if type(data[0][0]) == int:
             data = [[float(c) for c in r] for r in data]
         # Assert input is an orthogonal matrix
-        assert len(data) == 1 or len(data[1]) == len(data[0]), f'Dims not match len(data[0])={len(data[0])}, ' \
-                                                               f'len(data[1])={len(data[1])}'
+        # assert len(data) == 1 or len(data[1]) == len(data[0]), f'Dims not match len(data[0])={len(data[0])}, ' \
+        #                                                        f'len(data[1])={len(data[1])}'
         TNList.__init__(self, data=data)
         self.data: list
         self.nrows = len(self.data)
@@ -309,7 +307,7 @@ class Matrix2d(TNList):
         """
         # Matrix-matrix multiplication
         if type(m2) == Matrix2d:
-            assert self.ncols == m2.nrows, f'Matrix dimensions must agree ({self.ncols} != {m2.nrows})'
+            # assert self.ncols == m2.nrows, f'Matrix dimensions must agree ({self.ncols} != {m2.nrows})'
             return Matrix2d([[sum(ri * cj for ri, cj in zip(r, c)) for c in zip(*m2.data)] for r in self.data])
         # Matrix-vector multiplication
         # assert self.ncols == m2.n, f'Matrix dimensions must agree ({self.ncols} != {m2.n})'
@@ -386,10 +384,11 @@ class Matrix2d(TNList):
         line_data = [x for x in line.rstrip().split(" ")]
         nrows = int(line_data.pop(0))
         ncols = int(line_data.pop(0))
-        assert nrows * ncols == len(line_data), f'Given numbers of elements do not match ' \
-                                                f'((nrows,ncols)={(nrows, ncols)} | len(line_data)={len(line_data)})'
+        # assert nrows * ncols == len(line_data), f'Given numbers of elements do not match ' \
+        #                                         f'((nrows,ncols)={(nrows, ncols)} | len(line_data)={len(line_data)})'
         return Matrix2d([[float(line_data[j + i * ncols]) for j in range(ncols)] for i in range(nrows)])
 
+    # noinspection PyUnusedLocal
     @staticmethod
     def random(nrows: int, ncols: int, row_stochastic: bool = True) -> 'Matrix2d':
         """
@@ -399,7 +398,6 @@ class Matrix2d(TNList):
         :param bool row_stochastic: set to True to normalize each row of the matrix to sum up to 1.0
         :return: a 'Matrix2d' object
         """
-        # TODO: better initialization than this one
         m = Matrix2d([[
             1. * (1. / ncols)
             + 0.01 * (1. if ci == ri else 0.)

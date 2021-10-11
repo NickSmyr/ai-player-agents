@@ -49,14 +49,17 @@ class HMM:
             pi = Vector([1. / self.N] * self.N)
         self.pi = pi.normalize()
 
-    def initialize(self, globalB: list, label: Optional[int] = None) -> None:
+    def initialize(self, globalB: Optional[list] = None, label: Optional[int] = None) -> None:
         """
         Initializes model matrices before training.
         :param list globalB: of shape (1,K)
         :param int label: e.g. the gt fish_type that this HMM instance is assumed to recognize
         """
         # Initialize B from observations
-        B = Matrix2d([globalB.copy() for _ in range(self.N)])
+        if globalB is not None:
+            B = Matrix2d([globalB.copy() for _ in range(self.N)])
+        else:
+            B = Matrix2d.random(nrows=self.N, ncols=self.K, row_stochastic=True)
         # Initialize A, pi
         A = Matrix2d.random(self.N, self.N, row_stochastic=True)
         pi = Vector.random(self.N, normalize=True)
@@ -163,25 +166,6 @@ class HMM:
         # if T == 1:
         #     return 0., []
         # Initial beta is beta_{T-1}
-        # if cs is None:
-        #     cs = [1.] * T
-        # beta_tp1 = Vector([cs[-1]] * self.N)
-        # betas = [beta_tp1, ]
-        # # Iterate through reversed time
-        # for t in range(T - 2, -1, -1):
-        #     #   - compute beta_t
-        #     beta_t = A @ beta_tp1.hadamard(B_T[observations[t + 1]])
-        #     #   - scale beta_t[i]
-        #     beta_t *= cs[t]
-        #     #   - append to betas list
-        #     betas.append(beta_t)
-        #     #   - save for next iteration
-        #     beta_tp1 = beta_t
-        #
-        # # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
-        # betas.reverse()
-        # # Return likelihood, betas
-        # return 0., betas
         if cs is None:
             cs = [1.] * T
         beta_tp1 = Vector([cs[-1]] * self.N)
@@ -191,21 +175,12 @@ class HMM:
             # O_tp1 = observations[t+1]
             #   - compute beta_t
             beta_t = A @ beta_tp1.hadamard(B_T[observations[t + 1]])
-            # beta_t = [0.] * self.N
-            # for i in range(self.N):
-            #     #   - compute beta_t[i]
-            #     for j in range(self.N):
-            #         beta_t[i] += self.A[i][j]*self.B[j][O_tp1]* beta_tp1[j]
             #   - scale beta_t[i]
             beta_t *= cs[t]
             #   - append to betas list
             betas.append(beta_t)
             #   - save for next iteration
             beta_tp1 = beta_t
-        # for t in range(T - 2, -1, -1):
-        #     beta = self.A @ self.B.get_col(observations[t + 1]).hadamard(beta)
-        #     beta /= cs[t]
-        #     betas.append(beta)
         # beta_{-1} Used only for testing purposes
         # betas.append(beta.hadamard(self.pi).hadamard(self.B.get_col(observations[0])))
         # Betas are ordered in reverse to match scientific notations (betas[t] is really beta_t)
@@ -238,19 +213,6 @@ class HMM:
         #     _, alphas, cs = self.alpha_pass_scaled(observations, T=T)
         # _, betas = self.beta_pass_scaled(observations, cs=cs, T=T)
         # 2. Compute digammas and gammas for every t
-        # gammas = []
-        # digammas = []
-        # for t in range(T - 1):
-        #     #   - compute digamma_t
-        #     digamma = A.hadamard(alphas[t].outer(
-        #         betas[t + 1].hadamard(B_T[observations[t + 1]])
-        #     ))
-        #     digammas.append(digamma)
-        #     #   - marginalize over i (rows) to compute gamma_t
-        #     gammas.append(digamma.sum_rows())
-        # # Add last gamma for time step T
-        # gammas.append(alphas[-1])
-        # return gammas, digammas
         gammas = []
         digammas = []
         # We need one digamma for every t
@@ -263,13 +225,6 @@ class HMM:
             # digamma /= ll
             digammas.append(digamma)
             gammas.append(digamma.sum_rows())
-
-            # temp_matrix = alphas[t].outer(self.B.get_col(observations[t + 1]).hadamard(betas[t + 1]))
-            # curr_digamma = self.A.hadamard(temp_matrix).apply_func(lambda x: x / ll)
-            # digammas.append(curr_digamma)
-            # gammas.append(curr_digamma.sum_rows())
-            # assert all([[abs(c1 - c2) < 1e-10 for c1, c2 in zip(r1, r2)]
-            #             for r1, r2 in zip(digamma.data, curr_digamma.data)])
 
         # Add last gamma for time step T
         gammas.append(alphas[-1])
@@ -294,34 +249,17 @@ class HMM:
         # Reestimate pi
         pi = gammas[0]
         for i in rN:
-            # # Compute (almost) common denominator
-            # denom = sum(gammas[t][i] for t in rT1)
-            #
-            # # Reestimate A
-            # A[i] = [0. for _ in rN] if denom == 0.0 else \
-            #     [sum(digammas[t][i][j] for t in rT1) / denom for j in rN]
-            #
-            # # Reestimate B
-            # denom += gammas[T - 1][i]
-            # B[i] = [0. for _ in rK] if denom == 0.0 else \
-            #     [sum(gammas[t][i] for t in range(T) if observations[t] == j) / denom for j in rK]
-            denom = 0.
-            for t in range(T - 1):
-                denom += gammas[t][i]
+            # Compute (almost) common denominator
+            denom = sum(gammas[t][i] for t in rT1)
+
             # Reestimate A
-            for j in range(self.N):
-                numer = 0.
-                for t in range(T - 1):
-                    numer += digammas[t][i][j]
-                A[i][j] = numer / denom
+            A[i] = [0. for _ in rN] if denom == 0.0 else \
+                [sum(digammas[t][i][j] for t in rT1) / denom for j in rN]
+
             # Reestimate B
             denom += gammas[T - 1][i]
-            for j in range(self.K):
-                numer = 0.
-                for t in range(T):
-                    if observations[t] == j:
-                        numer += gammas[t][i]
-                B[i][j] = numer / denom
+            B[i] = [0. for _ in rK] if denom == 0.0 else \
+                [sum(gammas[t][i] for t in range(T) if observations[t] == j) / denom for j in rK]
 
         # Normalize model parameters and return
         return Vector(pi), Matrix2d(A), Matrix2d(B)

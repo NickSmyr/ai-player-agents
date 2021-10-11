@@ -1,5 +1,6 @@
 import fileinput
-from typing import Tuple
+import math
+from typing import Tuple, List
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -58,14 +59,34 @@ def get_q7() -> Tuple[Matrix2d, Matrix2d, Vector]:
     return A_q7, B_q7, pi_q7
 
 
+A8, B8, pi8 = None, None, None
+
+
 def get_q8() -> Tuple[Matrix2d, Matrix2d, Vector]:
     N, K = 3, 4
-    return Matrix2d.random(N, N), Matrix2d.random(N, K), Vector.random(N, normalize=True)
+    global A8, B8, pi8
+    if A8 is None:
+        A8, B8, pi8 = Matrix2d.random(N, N), Matrix2d.random(N, K), Vector.random(N, normalize=True)
+    return A8, B8, pi8
 
 
 def get_q10a() -> Tuple[Matrix2d, Matrix2d, Vector]:
     N, K = 3, 4
-    return Matrix2d.random(N, N), Matrix2d.random(N, K), Vector.random(N, normalize=True)
+    A_q10 = Matrix2d([[1. / N] * N] * N)
+    B_q10 = Matrix2d([[1. / K] * K] * N)
+    pi_q10 = Vector([1. / N] * N)
+    return A_q10.normalize_rows(), B_q10.normalize_rows(), pi_q10.normalize()
+
+
+def get_q10b() -> Tuple[Matrix2d, Matrix2d, Vector]:
+    N, K = 3, 4
+    # A identity matrix
+    A_q10 = Matrix2d([[1.0 if j == i else 0.0 for j in range(N)] for i in range(N)])
+    # B uniform
+    B_q10 = Matrix2d([[1. / K] * K] * N)
+    # pi [0, 0, 1]
+    pi_q10 = Vector([0., 0., 1.])
+    return A_q10.normalize_rows(), B_q10.normalize_rows(), pi_q10.normalize()
 
 
 # ---------------------------------------------------------------------------------------------- #
@@ -94,8 +115,12 @@ def q7(hmm: HMM, hmm_gt: HMM, observations: list, p_tol: float = 1e-6, max_iters
 
 def q8(hmm: HMM, hmm_gt: HMM, observations: list, p_tol: float = 1e-6, max_iters: int = 100, title: str = '') -> None:
     # Initialize model
-    A_q7, B_q7, pi_q7 = get_q8()
-    hmm.initialize_static(A=A_q7, B=B_q7, pi=pi_q7)
+    A_q8, B_q8, pi_q8 = get_q8()
+    # print(A_q8.__str__(round_places=4, include_shape=False))
+    # print(B_q8.__str__(round_places=4, include_shape=False))
+    # print(pi_q8.__str__(round_places=4, include_shape=False))
+
+    hmm.initialize_static(A=A_q8, B=B_q8, pi=pi_q8)
     # Output best model estimate
     A, B, pi, A_diff, B_diff, pi_diff, A_diff_init, B_diff_init, pi_diff_init = \
         hmm.train(observations, p_tol=p_tol, max_iters=max_iters, hmm_gt=hmm_gt, dist='l1')
@@ -106,11 +131,44 @@ def q8(hmm: HMM, hmm_gt: HMM, observations: list, p_tol: float = 1e-6, max_iters
                          last_ll=hmm.last_ll, show=False)
     plot_learning_curves(8, A_diff_init, B_diff_init, pi_diff_init, title=title, max_iters=max_iters, last_i=hmm.last_i,
                          last_ll=hmm.last_ll, secondary=True)
+    # Plot final error
+    print(f'A_diff[-1]={A_diff[-1]}, B_diff[-1]={B_diff[-1]}, pi_diff[-1]={pi_diff[-1]}')
 
 
-def q10(hmm: HMM, hmm_gt: HMM, observations: list, p_tol: float = 1e-6, max_iters: int = 100, title: str = '') -> None:
-    # TODO
-    pass
+def q9(observations: list, p_tol: float = 1e-6, max_iters: int = 100) -> list:
+    N_RUNS = 10
+    N_STATES = [1, 2, 3, 5, 10]
+    avg_lls = [0.] * len(N_STATES)
+
+    for Ni, N in enumerate(N_STATES):
+        print(f'[q9] N={N}')
+        for ri in range(N_RUNS):
+            #   - initialize an HMM with the given number of hidden states
+            hmm = HMM(N=N, K=4)
+            hmm.initialize()
+            #   - train it on the given observation sequence
+            hmm.train(observations=observations, max_iters=max_iters, p_tol=p_tol)
+            #   - get last sequence evaluation
+            avg_lls[Ni] += hmm.last_ll / N_RUNS
+            print(f'[q9] N={N} > r={ri} [DONE]')
+
+    # Return average log-likelihood of the observation in each of the different HMMs
+    return avg_lls
+
+
+def q10(observations: list, p_tol: float = 1e-6, max_iters: int = 100) -> Tuple[List[int], List[float]]:
+    last_is = [-1] * 3
+    last_lls = [-math.inf] * 3
+    for qi, q in enumerate(['a', 'b', 'c']):
+        #   - get matrices
+        A_q, B_q, pi_q = globals()[f'get_q10{q}']()
+        #   - initialize model
+        hmm = HMM(N=3, K=4)
+        hmm.initialize_static(A=A_q, B=B_q, pi=pi_q)
+        #   - train model on the given observation sequence
+        hmm.train(observations=observations, max_iters=max_iters, p_tol=p_tol)
+        last_is[qi], last_lls[qi] = hmm.last_i, hmm.last_ll
+    return last_is, last_lls
 
 
 # ---------------------------------------------------------------------------------------------- #
@@ -119,7 +177,7 @@ def q10(hmm: HMM, hmm_gt: HMM, observations: list, p_tol: float = 1e-6, max_iter
 
 
 if __name__ == '__main__':
-    _tol = 1e-2
+    _tol = 1e-6
     for _sample_index in [1000, 10000]:
         #   - read files
         _input = fileinput.input(f'hmmc_sample_{_sample_index}.in')
@@ -133,29 +191,17 @@ if __name__ == '__main__':
 
         # _observations = _observations[:1000]
 
-        # Question 7
-        q7(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=1e-6, title=f'N={_sample_index}')
+        # # Question 7
+        # q7(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=1e-3,
+        #    title=f'N={_sample_index}')
 
-        # Question 8
-        q8(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=1e-6, title=f'N={_sample_index}')
+        # # Question 8
+        # q8(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=_tol,
+        #    title=f'N={_sample_index}')
+
+        # # Question 9
+        # _avg_lls = q9(observations=_observations, max_iters=500, p_tol=1e-6)
+        # print([f'{_ll:.4f}' for _ll in _avg_lls])
 
         # Question 10
-        q10(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=100, p_tol=1e-6, title=f'N={_sample_index}')
-
-        # break
-
-        # A_gt, B_gt, pi_gt = get_gt()
-        # print(str(A_gt))
-        # print(str(B_gt))
-        # print(str(pi_gt))
-
-        #   - compare output to ground truth
-        #   - (a) Assert Equal to the Ground Truth
-        # assert A_opt.__str__(round_places=6) == _hmm_gt.A.__str__(round_places=6), \
-        #     f'{A_opt.__str__(round_places=6)} vs {_hmm_gt.A.__str__(round_places=6)}'
-        # assert B_opt.__str__(round_places=6) == _hmm_gt.B.__str__(round_places=6), \
-        #     f'{B_opt.__str__(round_places=6)} vs {_hmm_gt.B.__str__(round_places=6)}'
-        # #   - (b) Assert Close to the Ground Truth
-        # assert close(_hmm.A, _hmm_gt.A, tol=_tol), f'A_opt not close to _hmm_gt.A for tol={_tol}'
-        # assert close(_hmm.B, _hmm_gt.B, tol=_tol), f'A_opt not close to _hmm_gt.A for tol={_tol}'
-        # print(f'#{_sample_index:02d} PASSed', file=stderr)
+        q10(observations=_observations, max_iters=100, p_tol=1e-6)
