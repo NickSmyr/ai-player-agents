@@ -75,8 +75,8 @@ def get_q8() -> Tuple[Matrix2d, Matrix2d, Vector]:
 
 def get_q10a(**kwargs) -> Tuple[Matrix2d, Matrix2d, Vector]:
     N, K = 3, 4
-    A_q10 = Matrix2d([[(1. + 0.0001 * random.random()) / N] * N] * N)
-    B_q10 = Matrix2d([[(1. + 0.0001 * random.random()) / K] * K] * N)
+    A_q10 = Matrix2d([[1. / N] * N] * N)
+    B_q10 = Matrix2d([[1. / K] * K] * N)
     pi_q10 = Vector([1. / N] * N)
     return A_q10.normalize_rows(), B_q10.normalize_rows(), pi_q10.normalize()
 

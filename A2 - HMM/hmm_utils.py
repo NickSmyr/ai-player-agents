@@ -403,7 +403,7 @@ class Matrix2d(TNList):
         """
         m = Matrix2d([[
             1. * (1. / ncols)
-            + 0.01 * (1. if ci == ri else 0.)
+            # + 0.01 * (1. if ci == ri else 0.)
             + 0.005 * random.random()
             for ci in range(ncols)] for ri in range(nrows)])
         if row_stochastic:
