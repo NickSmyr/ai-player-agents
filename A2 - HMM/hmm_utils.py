@@ -1,8 +1,11 @@
 import abc
 import math
 import random
+import sys
 from copy import deepcopy
 from typing import Tuple, List
+
+eps = sys.float_info.epsilon
 
 
 def argmax(l: list) -> Tuple[float, int]:
@@ -282,7 +285,7 @@ class Matrix2d(TNList):
         self.data: list
         for r in range(self.nrows):
             row_sum = sum(self.data[r])
-            self.data[r] = [self.data[r][i] / row_sum for i in range(self.ncols)]
+            self.data[r] = [self.data[r][i] / (row_sum + eps) for i in range(self.ncols)]
         return self
 
     def get_col(self, c: int) -> Vector:

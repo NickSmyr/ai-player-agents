@@ -1,5 +1,7 @@
 import fileinput
 import math
+import random
+import sys
 from typing import Tuple, List
 
 import matplotlib
@@ -9,6 +11,7 @@ import numpy as np
 from hmm import HMM
 from hmm_utils import Vector, Matrix2d
 
+eps = sys.float_info.epsilon
 matplotlib.rcParams["font.family"] = 'JetBrains Mono'
 
 
@@ -70,22 +73,34 @@ def get_q8() -> Tuple[Matrix2d, Matrix2d, Vector]:
     return A8, B8, pi8
 
 
-def get_q10a() -> Tuple[Matrix2d, Matrix2d, Vector]:
+def get_q10a(**kwargs) -> Tuple[Matrix2d, Matrix2d, Vector]:
     N, K = 3, 4
-    A_q10 = Matrix2d([[1. / N] * N] * N)
-    B_q10 = Matrix2d([[1. / K] * K] * N)
+    A_q10 = Matrix2d([[(1. + 0.0001 * random.random()) / N] * N] * N)
+    B_q10 = Matrix2d([[(1. + 0.0001 * random.random()) / K] * K] * N)
     pi_q10 = Vector([1. / N] * N)
     return A_q10.normalize_rows(), B_q10.normalize_rows(), pi_q10.normalize()
 
 
-def get_q10b() -> Tuple[Matrix2d, Matrix2d, Vector]:
+def get_q10b(**kwargs) -> Tuple[Matrix2d, Matrix2d, Vector]:
     N, K = 3, 4
     # A identity matrix
-    A_q10 = Matrix2d([[1.0 if j == i else 0.0 for j in range(N)] for i in range(N)])
+    A_q10 = Matrix2d([[1.0 if j == i else eps for j in range(N)] for i in range(N)])
     # B uniform
-    B_q10 = Matrix2d([[1. / K] * K] * N)
+    B_q10 = Matrix2d([[1.0 if j == i else eps for j in range(K)] for i in range(N)])
     # pi [0, 0, 1]
-    pi_q10 = Vector([0., 0., 1.])
+    pi_q10 = Vector([eps, eps, 1.])
+    return A_q10.normalize_rows(), B_q10.normalize_rows(), pi_q10.normalize()
+
+
+def get_q10c(hmm_gt: HMM) -> Tuple[Matrix2d, Matrix2d, Vector]:
+    N, K = 3, 4
+    A_gt, B_gt, pi_gt = hmm_gt.A.copy(), hmm_gt.B.copy(), hmm_gt.pi.copy()
+    # A identity matrix
+    A_q10 = Matrix2d([[(A_gt[i][j] + 0.05 * random.random()) for j in range(N)] for i in range(N)])
+    # B uniform
+    B_q10 = Matrix2d([[(B_gt[i][j] + 0.05 * random.random()) for j in range(K)] for i in range(N)])
+    # pi [0, 0, 1]
+    pi_q10 = Vector([(pi_j + 0.05 * random.random()) for pi_j in pi_gt])
     return A_q10.normalize_rows(), B_q10.normalize_rows(), pi_q10.normalize()
 
 
@@ -156,18 +171,22 @@ def q9(observations: list, p_tol: float = 1e-6, max_iters: int = 100) -> list:
     return avg_lls
 
 
-def q10(observations: list, p_tol: float = 1e-6, max_iters: int = 100) -> Tuple[List[int], List[float]]:
+def q10(hmm_gt: HMM, observations: list, p_tol: float = 1e-6, max_iters: int = 100) -> Tuple[List[int], List[float]]:
     last_is = [-1] * 3
     last_lls = [-math.inf] * 3
     for qi, q in enumerate(['a', 'b', 'c']):
         #   - get matrices
-        A_q, B_q, pi_q = globals()[f'get_q10{q}']()
+        A_q, B_q, pi_q = globals()[f'get_q10{q}'](hmm_gt=hmm_gt)
+        # print(A_q)
+        # print(B_q)
+        # print(pi_q)
         #   - initialize model
         hmm = HMM(N=3, K=4)
         hmm.initialize_static(A=A_q, B=B_q, pi=pi_q)
         #   - train model on the given observation sequence
         hmm.train(observations=observations, max_iters=max_iters, p_tol=p_tol)
         last_is[qi], last_lls[qi] = hmm.last_i, hmm.last_ll
+        print(f'[q={q}] last_is[qi]={last_is[qi]}, last_lls[qi]={last_lls[qi]:.4f}')
     return last_is, last_lls
 
 
@@ -189,8 +208,6 @@ if __name__ == '__main__':
         _hmm, _observations = HMM.from_input(_input)
         _input.close()
 
-        # _observations = _observations[:1000]
-
         # # Question 7
         # q7(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=1e-3,
         #    title=f'N={_sample_index}')
@@ -204,4 +221,6 @@ if __name__ == '__main__':
         # print([f'{_ll:.4f}' for _ll in _avg_lls])
 
         # Question 10
-        q10(observations=_observations, max_iters=100, p_tol=1e-6)
+        _last_is, _last_lls = q10(hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=1e-4)
+        print(f'[Q10][N={_sample_index}] last_is={_last_is}')
+        print(f'[Q10][N={_sample_index}] last_lls={_last_lls}')
