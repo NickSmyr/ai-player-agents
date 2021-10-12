@@ -262,7 +262,7 @@ class HMM:
                 [sum(gammas[t][i] for t in range(T) if observations[t] == j) / denom for j in rK]
 
         # Normalize model parameters and return
-        return Vector(pi), Matrix2d(A), Matrix2d(B)
+        return pi, Matrix2d(A), Matrix2d(B)
 
     # noinspection PyUnboundLocalVariable
     def train(self, observations: list, max_iters: int = 100, p_tol: float = 1e-6, T: Optional[int] = None,

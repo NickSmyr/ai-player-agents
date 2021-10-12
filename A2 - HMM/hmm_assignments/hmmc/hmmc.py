@@ -197,7 +197,7 @@ def q10(hmm_gt: HMM, observations: list, p_tol: float = 1e-6, max_iters: int = 1
 
 if __name__ == '__main__':
     _tol = 1e-6
-    for _sample_index in [1000, 10000]:
+    for _sample_index in [10000, ]:
         #   - read files
         _input = fileinput.input(f'hmmc_sample_{_sample_index}.in')
         _output = fileinput.input(f'hmmc_sample_{_sample_index}.out')
@@ -212,9 +212,9 @@ if __name__ == '__main__':
         # q7(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=1e-3,
         #    title=f'N={_sample_index}')
 
-        # # Question 8
-        # q8(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=_tol,
-        #    title=f'N={_sample_index}')
+        # Question 8
+        q8(hmm=_hmm, hmm_gt=_hmm_gt, observations=_observations, max_iters=500, p_tol=_tol,
+           title=f'N={_sample_index}')
 
         # # Question 9
         # _avg_lls = q9(observations=_observations, max_iters=500, p_tol=1e-6)
