@@ -355,32 +355,30 @@ class FishingDerbyRLApp(App, SettingLoader, Communicator, PrintScore1Player):
         ind_state = self.ind2state[current_state]
         if not self.player.diver.model[ind_state, ind_action]:
             reward = -100
-            final_state = False
-            return reward, final_state
+            is_final_state = False
+            return reward, is_final_state
         else:
             next_state_x, next_state_y = self.next_state(current_state, action)
             next_state = next_state_x, next_state_y
             self.player.diver.position.set_x(next_state_x)
             self.player.diver.position.set_y(next_state_y)
 
-        reward, final_state = self.compute_reward(next_state)
-        return reward, final_state
+        reward, is_final_state = self.compute_reward(next_state)
+        return reward, is_final_state
 
     def compute_reward(self, next_state):
         next_state_x, next_state_y = next_state
-        reward = self.settings.rewards[-1]  #changed from 0....
-        final_state = False
+        reward = self.settings.rewards[-1]  # changed from 0....
+        is_final_state = False
         for jelly in range(len(self.jellys)):
-            if next_state_x == self.settings.jelly_x[
-                    jelly] and next_state_y == self.settings.jelly_y[jelly]:
-
-                reward = self.settings.rewards[1 + jelly]
+            if next_state_x == self.settings.jelly_x[jelly] and next_state_y == self.settings.jelly_y[jelly]:
+                reward = self.settings.rewards[jelly + 1]
                 self.n_jelly += 1
                 break
         if next_state == tuple(self.settings.pos_king):
             reward = self.king_fish.score
-            final_state = True
-        return reward, final_state
+            is_final_state = True
+        return reward, is_final_state
 
     def send_state(self, reward, end_episode=False):
         """
@@ -389,7 +387,7 @@ class FishingDerbyRLApp(App, SettingLoader, Communicator, PrintScore1Player):
         msg = {
             "game_over": self.game_over,
             "state":
-            (self.player.diver.position.x, self.player.diver.position.y),
+                (self.player.diver.position.x, self.player.diver.position.y),
             "reward": reward,
             "end_episode": end_episode
         }
@@ -563,7 +561,7 @@ class FishingDerbyRLApp(App, SettingLoader, Communicator, PrintScore1Player):
     # Headless mode methods
     def run_headless(self):
         """Initialize the testing environment"""
-        #kivy inherited stuff
+        # kivy inherited stuff
         if self.headless:
             self.headless_mode()
         else:

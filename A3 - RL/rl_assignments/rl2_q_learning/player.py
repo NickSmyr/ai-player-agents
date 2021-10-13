@@ -93,7 +93,6 @@ def epsilon_greedy(Q,
                    epsilon_final=0.2,
                    anneal_timesteps=10000,
                    eps_type="constant"):
-
     if eps_type == 'constant':
         epsilon = epsilon_final
         # ADD YOUR CODE SNIPPET BETWEEN EX 3.1
@@ -104,13 +103,13 @@ def epsilon_greedy(Q,
         # ADD YOUR CODE SNIPPET BETWEEN EX 3.1
 
     elif eps_type == 'linear':
-        # ADD YOUR CODE SNIPPET BETWEENEX  3.2
-        # Implemenmt the epsilon-greedy algorithm for a linear epsilon value
+        # ADD YOUR CODE SNIPPET BETWEEN EX  3.2
+        # Implement the epsilon-greedy algorithm for a linear epsilon value
         # Use epsilon and all input arguments of epsilon_greedy you see fit
         # use the ScheduleLinear class
         # It is recommended you use the np.random module
         action = None
-        # ADD YOUR CODE SNIPPET BETWEENEX  3.2
+        # ADD YOUR CODE SNIPPET BETWEEN EX  3.2
 
     else:
         raise "Epsilon greedy type unknown"
@@ -118,6 +117,7 @@ def epsilon_greedy(Q,
     return action
 
 
+# noinspection PyAttributeOutsideInit
 class PlayerControllerRL(PlayerController, FishesModelling):
     def __init__(self):
         super().__init__()
@@ -134,10 +134,10 @@ class PlayerControllerRL(PlayerController, FishesModelling):
         self.threshold = self.settings.threshold
         self.episode_max = self.settings.episode_max
 
-        q = self.q_learning()
+        Q = self.q_learning()
 
         # compute policy
-        policy = self.get_policy(q)
+        policy = self.get_policy(Q)
 
         # send policy
         msg = {"policy": policy, "exploration": False}
@@ -156,7 +156,7 @@ class PlayerControllerRL(PlayerController, FishesModelling):
         self.allowed_movements()
         # ADD YOUR CODE SNIPPET BETWEEN EX. 2.1
         # Initialize a numpy array with ns state rows and na state columns with float values from 0.0 to 1.0.
-        Q = None
+        Q = 0.01 * np.random.randn(ns, na)
         # ADD YOUR CODE SNIPPET BETWEEN EX. 2.1
 
         for s in range(ns):
@@ -181,20 +181,28 @@ class PlayerControllerRL(PlayerController, FishesModelling):
         # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
         # Change the while loop to incorporate a threshold limit, to stop training when the mean difference
         # in the Q table is lower than the threshold
-        while episode <= self.episode_max:
-            # ADD YOUR CODE SNIPPET BETWEENEX. 2.3
+        while episode <= self.episode_max and diff > self.threshold:
+            # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
 
             s_current = init_pos
             R_total = 0
             steps = 0
             while not end_episode:
                 # selection of action
-                list_pos = self.allowed_moves[s_current]
+                # Disable not allowed moves
+                allowed_actions = self.allowed_moves[s_current]
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
                 # Chose an action from all possible actions
-                action = None
+                if np.all(np.isnan(Q[s_current, :])):
+                    action = np.random.choice(allowed_actions)
+                else:
+                    action = np.nanargmax(Q[s_current, allowed_actions])
+                    action = allowed_actions[action]
                 # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
+
+                assert action in allowed_actions, f'action={action} | allowed_actions={allowed_actions} | ' + \
+                                                  f'Q[s_current]={Q[s_current]}'
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX 5
                 # Use the epsilon greedy algorithm to retrieve an action
@@ -202,6 +210,7 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
                 # compute reward
                 action_str = self.action_list[action]
+                # print(f'state={self.state2ind[s_current]} | action={action_str}')
                 msg = {"action": action_str, "exploration": True}
                 self.sender(msg)
 
@@ -215,6 +224,11 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX. 2.2
                 # Implement the Bellman Update equation to update Q
+                current_q = Q[s_current, action] if not np.isnan(Q[s_current, action]) else 0.
+                next_q = np.nanmax(Q[s_next, :])
+                if np.isnan(next_q):
+                    next_q = 0.
+                Q[s_current, action] = (1 - self.alpha) * current_q + self.alpha * (R + self.gamma * next_q)
                 # ADD YOUR CODE SNIPPET BETWEEN EX. 2.2
 
                 s_current = s_next
@@ -223,129 +237,32 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
             # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
             # Compute the absolute value of the mean between the Q and Q-old
-            diff = 100
+            diff = np.nansum(np.abs(Q_old[:] - Q[:]))
             # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
             Q_old[:] = Q
             print(
                 "Episode: {}, Steps {}, Diff: {:6e}, Total Reward: {}, Total Steps {}"
-                .format(episode, steps, diff, R_total, current_total_steps))
+                    .format(episode, steps, diff, R_total, current_total_steps))
             episode += 1
             end_episode = False
 
         return Q
 
+    # noinspection PyBroadException
     def get_policy(self, Q):
         nan_max_actions_proxy = [None for _ in range(len(Q))]
-        for _ in range(len(Q)):
+        for s in range(len(Q)):
             try:
-                nan_max_actions_proxy[_] = np.nanargmax(Q[_])
+                # noinspection PyTypeChecker
+                nan_max_actions_proxy[s] = np.nanargmax(Q[s])
             except:
-                nan_max_actions_proxy[_] = np.random.choice([0, 1, 2, 3])
+                nan_max_actions_proxy[s] = np.random.choice([0, 1, 2, 3])
 
         nan_max_actions_proxy = np.array(nan_max_actions_proxy)
 
-        assert nan_max_actions_proxy.all() == nan_max_actions_proxy.all()
-
         policy = {}
-        list_actions = list(self.actions.keys())
-        for n in self.state2ind.keys():
-            state_tuple = self.state2ind[n]
-            policy[(state_tuple[0],
-                    state_tuple[1])] = list_actions[nan_max_actions_proxy[n]]
-        return policy
-
-
-class PlayerControllerRandom(PlayerController):
-    def __init__(self):
-        super().__init__()
-
-    def player_loop(self):
-
-        self.init_actions()
-        self.init_states()
-        self.allowed_movements()
-        self.episode_max = self.settings.episode_max
-
-        n = self.random_agent()
-
-        # compute policy
-        policy = self.get_policy(n)
-
-        # send policy
-        msg = {"policy": policy, "exploration": False}
-        self.sender(msg)
-
-        msg = self.receiver()
-        print("Random Agent returning")
-        return
-
-    def random_agent(self):
-        ns = len(self.state2ind.keys())
-        na = len(self.actions.keys())
-        init_pos_tuple = self.settings.init_pos_diver
-        init_pos = self.ind2state[(init_pos_tuple[0], init_pos_tuple[1])]
-        episode = 0
-        R_total = 0
-        steps = 0
-        current_total_steps = 0
-        end_episode = False
-        # ADD YOUR CODE SNIPPET BETWEEN EX. 1.2
-        # Initialize a numpy array with ns state rows and na state columns with zeros
-        # ADD YOUR CODE SNIPPET BETWEEN EX. 1.2
-
-        while episode <= self.episode_max:
-            s_current = init_pos
-            R_total = 0
-            steps = 0
-            while not end_episode:
-                # all possible actions
-                possible_actions = self.allowed_moves[s_current]
-
-                # ADD YOUR CODE SNIPPET BETWEEN EX. 1.2
-                # Chose an action from all possible actions and add to the counter of actions per state
-                action = None
-                # ADD YOUR CODE SNIPPET BETWEEN EX. 1.2
-
-                action_str = self.action_list[action]
-                msg = {"action": action_str, "exploration": True}
-                self.sender(msg)
-
-                # wait response from game
-                msg = self.receiver()
-                R = msg["reward"]
-                s_next_tuple = msg["state"]
-                end_episode = msg["end_episode"]
-                s_next = self.ind2state[s_next_tuple]
-                s_current = s_next
-                R_total += R
-                current_total_steps += 1
-                steps += 1
-
-            print("Episode: {}, Steps {}, Total Reward: {}, Total Steps {}".
-                  format(episode, steps, R_total, current_total_steps))
-            episode += 1
-            end_episode = False
-
-        return n
-
-    def get_policy(self, Q):
-        nan_max_actions_proxy = [None for _ in range(len(Q))]
-        for _ in range(len(Q)):
-            try:
-                nan_max_actions_proxy[_] = np.nanargmax(Q[_])
-            except:
-                nan_max_actions_proxy[_] = np.random.choice([0, 1, 2, 3])
-
-        nan_max_actions_proxy = np.array(nan_max_actions_proxy)
-
-        assert nan_max_actions_proxy.all() == nan_max_actions_proxy.all()
-
-        policy = {}
-        list_actions = list(self.actions.keys())
-        for n in self.state2ind.keys():
-            state_tuple = self.state2ind[n]
-            policy[(state_tuple[0],
-                    state_tuple[1])] = list_actions[nan_max_actions_proxy[n]]
+        for s in self.state2ind.keys():
+            policy[tuple(self.state2ind[s])] = self.action_list[nan_max_actions_proxy[s]]
         return policy
 
 

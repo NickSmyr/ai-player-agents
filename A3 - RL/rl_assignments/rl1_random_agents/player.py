@@ -157,10 +157,11 @@ class PlayerControllerRL(PlayerController, FishesModelling):
     def q_learning(self):
         ns = len(self.state2ind.keys())
         na = len(self.actions.keys())
-        discount = self.gamma
+        gamma = self.gamma
         lr = self.alpha
         # initialization
         self.allowed_movements()
+
         # ADD YOUR CODE SNIPPET BETWEEN EX. 2.1
         # Initialize a numpy array with ns state rows and na state columns with float values from 0.0 to 1.0.
         Q = np.zeros((ns, na))
@@ -272,10 +273,10 @@ class PlayerControllerRandom(PlayerController):
         self.allowed_movements()
         self.episode_max = self.settings.episode_max
 
-        n = self.random_agent()
+        Q = self.random_agent()
 
         # compute policy
-        policy = self.get_policy(n)
+        policy = self.get_policy(Q)
 
         # send policy
         msg = {"policy": policy, "exploration": False}
@@ -297,6 +298,7 @@ class PlayerControllerRandom(PlayerController):
         end_episode = False
         # ADD YOUR CODE SNIPPET BETWEEN EX. 1.2
         # Initialize a numpy array with ns state rows and na state columns with zeros
+        Q = np.zeros((ns, na), dtype=float)
         # ADD YOUR CODE SNIPPET BETWEEN EX. 1.2
 
         while episode <= self.episode_max:
@@ -309,7 +311,8 @@ class PlayerControllerRandom(PlayerController):
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX. 1.2
                 # Chose an action from all possible actions and add to the counter of actions per state
-                action = None
+                action = np.random.choice(possible_actions)
+                Q[s_current, action] += 1.
                 # ADD YOUR CODE SNIPPET BETWEEN EX. 1.2
 
                 action_str = self.action_list[action]
@@ -332,26 +335,23 @@ class PlayerControllerRandom(PlayerController):
             episode += 1
             end_episode = False
 
-        return []
+        return Q
 
+    # noinspection PyBroadException
     def get_policy(self, Q):
         nan_max_actions_proxy = [None for _ in range(len(Q))]
-        for _ in range(len(Q)):
+        for s in range(len(Q)):
             try:
-                nan_max_actions_proxy[_] = np.nanargmax(Q[_])
+                # noinspection PyTypeChecker
+                nan_max_actions_proxy[s] = np.nanargmax(Q[s])
             except:
-                nan_max_actions_proxy[_] = np.random.choice([0, 1, 2, 3])
+                nan_max_actions_proxy[s] = np.random.choice([0, 1, 2, 3])
 
         nan_max_actions_proxy = np.array(nan_max_actions_proxy)
 
-        assert nan_max_actions_proxy.all() == nan_max_actions_proxy.all()
-
         policy = {}
-        list_actions = list(self.actions.keys())
-        for n in self.state2ind.keys():
-            state_tuple = self.state2ind[n]
-            policy[(state_tuple[0],
-                    state_tuple[1])] = list_actions[nan_max_actions_proxy[n]]
+        for s in self.state2ind.keys():
+            policy[tuple(self.state2ind[s])] = self.action_list[nan_max_actions_proxy[s]]
         return policy
 
 
