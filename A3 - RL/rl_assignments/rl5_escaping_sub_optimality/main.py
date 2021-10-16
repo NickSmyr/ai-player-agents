@@ -140,14 +140,13 @@ class Application(SettingLoader):
 
     def get_player_controller(self):
         if self.settings.player_type == "human":
-            from player import PlayerControllerHuman
+            from player_5 import PlayerControllerHuman
             pc = PlayerControllerHuman()
         elif self.settings.player_type == "ai_rl":
-            # from player import PlayerControllerRL
-            from player import PlayerControllerRL
+            from player_5 import PlayerControllerRL
             pc = PlayerControllerRL()
         elif self.settings.player_type == "random":
-            from player import PlayerControllerRandom
+            from player_5 import PlayerControllerRandom
             pc = PlayerControllerRandom()
         else:
             raise NotImplementedError
