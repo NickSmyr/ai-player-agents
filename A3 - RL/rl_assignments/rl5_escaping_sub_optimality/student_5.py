@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # Q learning learning rate
-alpha = 0.6
+alpha = 1.0
 
 # Q learning discount rate
-gamma = 0.5
+gamma = 0.4
 
 # Epsilon initial
-epsilon_initial = 1.1
+epsilon_initial = 0.9
 
 # Epsilon final
-epsilon_final = 0.0
+epsilon_final = 0.1
 
 # Annealing timesteps
 annealing_timesteps = 1000

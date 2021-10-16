@@ -197,14 +197,16 @@ class PlayerControllerRL(PlayerController, FishesModelling):
         # Initialize schedulers
         epsilon_scheduler = ScheduleLinear(schedule_timesteps=self.annealing_timesteps, final_p=self.epsilon_final,
                                            initial_p=self.epsilon_initial, curve_smoothness=10.0)
-        alpha_scheduler = ScheduleLinear(schedule_timesteps=10 * self.annealing_timesteps, final_p=self.alpha,
-                                         initial_p=self.alpha / 2, curve_smoothness=10.0)
-        gamma_scheduler = ScheduleLinear(schedule_timesteps=10 * self.annealing_timesteps, final_p=self.gamma,
-                                         initial_p=self.gamma, curve_smoothness=10.0)
+        alpha_scheduler = ScheduleLinear(schedule_timesteps=6*self.annealing_timesteps, initial_p=self.alpha,
+                                         final_p=self.alpha / 2.0, curve_smoothness=10.0)
+        gamma_scheduler = ScheduleLinear(schedule_timesteps=self.annealing_timesteps, initial_p=self.gamma,
+                                         final_p=self.gamma * 2.0, curve_smoothness=10.0)
 
+        # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
         # Change the while loop to incorporate a threshold limit, to stop training when the mean difference
         # in the Q table is lower than the threshold
         while episode <= self.episode_max and diff > self.threshold and R_best_count < 5:
+            # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
 
             s_current = init_pos
             R_total = 0
@@ -214,7 +216,7 @@ class PlayerControllerRL(PlayerController, FishesModelling):
                 # Disable not allowed moves
                 allowed_actions = self.allowed_moves[s_current]
 
-                # Use the epsilon greedy algorithm to retrieve an action
+                # Chose an action from all possible actions
                 if np.all(np.isnan(Q[s_current, :])):
                     action = np.random.choice(allowed_actions)
                 else:
@@ -225,6 +227,10 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
                 assert action in allowed_actions, f'action={action} | allowed_actions={allowed_actions} | ' + \
                                                   f'Q[s_current]={Q[s_current]}'
+
+                # ADD YOUR CODE SNIPPET BETWEEN EX 5
+                # Use the epsilon greedy algorithm to retrieve an action
+                # ADD YOUR CODE SNIPPET BETWEEN EX 5
 
                 # compute reward
                 action_str = self.action_list[action]
@@ -268,6 +274,9 @@ class PlayerControllerRL(PlayerController, FishesModelling):
             else:
                 R_best_count = 0
 
+            # # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
+            # diff = np.nansum(np.abs(Q_old[:] - Q[:]))
+            # Q_old[:] = Q
             print("Episode: {}, Steps {}, Diff: {:6e}, Total Reward: {}, Total Steps {}"
                   .format(episode, steps, diff, R_total, current_total_steps))
             episode += 1
