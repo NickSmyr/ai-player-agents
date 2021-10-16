@@ -197,10 +197,10 @@ class PlayerControllerRL(PlayerController, FishesModelling):
         # Initialize schedulers
         epsilon_scheduler = ScheduleLinear(schedule_timesteps=self.annealing_timesteps, final_p=self.epsilon_final,
                                            initial_p=self.epsilon_initial, curve_smoothness=10.0)
-        alpha_scheduler = ScheduleLinear(schedule_timesteps=6*self.annealing_timesteps, initial_p=self.alpha,
+        alpha_scheduler = ScheduleLinear(schedule_timesteps=6 * self.annealing_timesteps, initial_p=self.alpha,
                                          final_p=self.alpha / 2.0, curve_smoothness=10.0)
         gamma_scheduler = ScheduleLinear(schedule_timesteps=self.annealing_timesteps, initial_p=self.gamma,
-                                         final_p=self.gamma * 2.0, curve_smoothness=10.0)
+                                         final_p=self.gamma * 2.5, curve_smoothness=10.0)
 
         # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
         # Change the while loop to incorporate a threshold limit, to stop training when the mean difference

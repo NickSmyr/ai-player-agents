@@ -9,10 +9,10 @@ gamma = 0.4
 epsilon_initial = 0.9
 
 # Epsilon final
-epsilon_final = 0.1
+epsilon_final = 0.0
 
 # Annealing timesteps
 annealing_timesteps = 1000
 
 # threshold
-threshold = 1e-6
+threshold = 10.0

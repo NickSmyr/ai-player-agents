@@ -12,26 +12,26 @@ frames_per_second: 10000
 # player_type: "random"
 player_type: "ai_rl"
 
-## Q learning lr
-alpha: 0.8
+# Q-learning rate
+alpha: 1.0
 
-## Q learning discount rate
-gamma: 0.6
+# Q learning discount rate
+gamma: 0.4
 
 # Disables the graphical engine of the simulator (true by default)
-headless: false
+headless: true
 
 ## Epsilon initial
-epsilon_initial: 1.0
+epsilon_initial: 0.9
 
 ## Epsilon final
-epsilon_final: 0.1
+epsilon_final: 0.0
 
 ## Annealing timesteps
 annealing_timesteps: 1000
 
 ## threshold
-threshold: 1e-6
+threshold: 10.0
 
 # Position of the jellyfishes
 jelly_x: [ 3, 3, 4, 4, 4, 4, 5, 5, 8, 7, 8 ]
