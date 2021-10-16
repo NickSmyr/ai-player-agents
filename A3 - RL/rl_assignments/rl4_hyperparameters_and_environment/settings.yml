@@ -21,16 +21,17 @@ gamma: 0.1
 headless: true
 
 ## Epsilon initial
-epsilon_initial: 1
+epsilon_initial: 1.0
 
 ## Epsilon final
-epsilon_final: 1
+epsilon_final: 0.0
 
 ## Annealing timesteps
+# 10 episodes * 100 steps / episode
 annealing_timesteps: 1000
 
 ## threshold
-threshold: 1e-1
+threshold: 1e-7
 
 # Position of the jellyfishes
 jelly_x: [ 3, 3, 4, 4, 4, 4, 5, 5, 8, 7, 8 ]

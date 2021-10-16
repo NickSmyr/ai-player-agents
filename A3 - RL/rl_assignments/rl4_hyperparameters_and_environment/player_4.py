@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from typing import Tuple, Optional
+
 import numpy as np
 
 from agent import Fish
@@ -89,10 +91,10 @@ def epsilon_greedy(Q,
                    state,
                    all_actions,
                    current_total_steps=0,
-                   epsilon_initial=1,
+                   epsilon_initial=1.0,
                    epsilon_final=0.2,
-                   anneal_timesteps=10000,
-                   eps_type="constant"):
+                   epsilon_scheduler: Optional['ScheduleLinear'] = None,
+                   eps_type="constant") -> int:
     if eps_type == 'constant':
         epsilon = epsilon_final
         # ADD YOUR CODE SNIPPET BETWEEN EX 3.1
@@ -111,11 +113,7 @@ def epsilon_greedy(Q,
 
     elif eps_type == 'linear':
         # ADD YOUR CODE SNIPPET BETWEEN EX  3.2
-        de = epsilon_final - epsilon_initial
-        if current_total_steps >= anneal_timesteps:
-            epsilon = epsilon_final
-        else:
-            epsilon = epsilon_initial + de * float(current_total_steps) / anneal_timesteps
+        epsilon = epsilon_scheduler.value(current_total_steps)
         # Implement the epsilon-greedy algorithm for a linear epsilon value
         # Use epsilon and all input arguments of epsilon_greedy you see fit
         # use the ScheduleLinear class
@@ -136,11 +134,11 @@ def epsilon_greedy(Q,
     return action
 
 
+# noinspection PyAttributeOutsideInit
 class PlayerControllerRL(PlayerController, FishesModelling):
     def __init__(self):
         super().__init__()
 
-    # noinspection PyAttributeOutsideInit
     def player_loop(self):
         # send message to game that you are ready
         self.init_actions()
@@ -195,7 +193,10 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
         R_total = 0
         current_total_steps = 0
-        steps = 0
+
+        # Initialize epsilon scheduler
+        epsilon_scheduler = ScheduleLinear(schedule_timesteps=self.annealing_timesteps, final_p=self.epsilon_final,
+                                           initial_p=self.epsilon_initial, curve_smoothness=5.0)
 
         # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
         # Change the while loop to incorporate a threshold limit, to stop training when the mean difference
@@ -208,15 +209,9 @@ class PlayerControllerRL(PlayerController, FishesModelling):
             steps = 0
             while not end_episode:
                 # selection of action
+                # Disable not allowed moves
                 allowed_actions = self.allowed_moves[s_current]
 
-                # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
-                # Chose an action from all possible actions
-                action = None
-                # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
-
-                # ADD YOUR CODE SNIPPET BETWEEN EX 3
-                # Use the epsilon greedy algorithm to retrieve an action
                 # Chose an action from all possible actions
                 if np.all(np.isnan(Q[s_current, :])):
                     action = np.random.choice(allowed_actions)
@@ -224,11 +219,18 @@ class PlayerControllerRL(PlayerController, FishesModelling):
                     action = epsilon_greedy(Q=Q, state=s_current, all_actions=allowed_actions,
                                             current_total_steps=current_total_steps,
                                             epsilon_initial=self.epsilon_initial, epsilon_final=self.epsilon_final,
-                                            eps_type='linear')
-                # ADD YOUR CODE SNIPPET BETWEEN EX 3
+                                            epsilon_scheduler=epsilon_scheduler, eps_type='linear')
+
+                assert action in allowed_actions, f'action={action} | allowed_actions={allowed_actions} | ' + \
+                                                  f'Q[s_current]={Q[s_current]}'
+
+                # ADD YOUR CODE SNIPPET BETWEEN EX 5
+                # Use the epsilon greedy algorithm to retrieve an action
+                # ADD YOUR CODE SNIPPET BETWEEN EX 5
 
                 # compute reward
                 action_str = self.action_list[action]
+                # print(f'state={self.state2ind[s_current]} | action={action_str}')
                 msg = {"action": action_str, "exploration": True}
                 self.sender(msg)
 
@@ -266,39 +268,74 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
         return Q
 
-    # noinspection PyBroadException,PyTypeChecker
+    # noinspection PyBroadException
     def get_policy(self, Q):
         nan_max_actions_proxy = [None for _ in range(len(Q))]
-        for _ in range(len(Q)):
+        for s in range(len(Q)):
             try:
-                nan_max_actions_proxy[_] = np.nanargmax(Q[_])
+                # noinspection PyTypeChecker
+                nan_max_actions_proxy[s] = np.nanargmax(Q[s])
             except:
-                nan_max_actions_proxy[_] = np.random.choice([0, 1, 2, 3])
+                nan_max_actions_proxy[s] = np.random.choice([0, 1, 2, 3])
 
         nan_max_actions_proxy = np.array(nan_max_actions_proxy)
 
-        assert nan_max_actions_proxy.all() == nan_max_actions_proxy.all()
-
         policy = {}
-        list_actions = list(self.actions.keys())
-        for n in self.state2ind.keys():
-            state_tuple = self.state2ind[n]
-            policy[(state_tuple[0],
-                    state_tuple[1])] = list_actions[nan_max_actions_proxy[n]]
+        for s in self.state2ind.keys():
+            policy[tuple(self.state2ind[s])] = self.action_list[nan_max_actions_proxy[s]]
         return policy
 
 
 class ScheduleLinear(object):
-    def __init__(self, schedule_timesteps, final_p, initial_p=1.0):
+    def __init__(self, schedule_timesteps, final_p, initial_p=1.0, curve_smoothness: float = 1.0):
         self.schedule_timesteps = schedule_timesteps
         self.final_p = final_p
         self.initial_p = initial_p
+        ex, self.epsilon_curve = ScheduleLinear.get_alpha_curve(num_iters=schedule_timesteps, return_x=True,
+                                                                alpha_multiplier=curve_smoothness,
+                                                                y_start=initial_p, y_end=final_p)
+        # plt.plot(ex, self.epsilon_curve)
+        # plt.xlabel('iter')
+        # plt.ylabel('epsilon')
+        # plt.title(f'Epsilon curve during the annealing steps (={schedule_timesteps})')
+        # plt.show()
 
     def value(self, t):
         # ADD YOUR CODE SNIPPET BETWEEN EX 3.2
         # Return the annealed linear value
-        de = self.final_p - self.initial_p
-        if t >= self.schedule_timesteps:
-            return self.final_p
-        return self.initial_p + de * float(t) / self.schedule_timesteps
+        return self.epsilon_curve[t if t < self.schedule_timesteps else -1]
         # ADD YOUR CODE SNIPPET BETWEEN EX 3.2
+
+    @staticmethod
+    def get_alpha_curve(num_iters: int, alpha_multiplier: float = 10.0, y_start: float = 0.0, y_end: float = 1.0,
+                        return_x: bool = False) -> Tuple[np.ndarray, np.ndarray] or np.ndarray:
+        """
+        Return the sigmoid curve fro StyleGAN's alpha parameter.
+        Source: https://github.com/achariso/gans-thesis
+        :param (int) num_iters: total number of iterations (equals the number of points in curve)
+        :param (float) alpha_multiplier: parameter which controls the sharpness of the curve (1=linear, 1000=delta at half
+                                         the interval - defaults to 10 that a yields a fairly smooth transition)
+        :param (float) y_start: initial y value in the resulting curve
+        :param (float) y_end: final y value in the resulting curve
+        :param (bool) return_x: set to True to have the method also return the x-values
+        :return: either a tuple with x,y as np.ndarray objects  or y as np.ndarray object
+        """
+        if num_iters < 2:
+            return np.array([y_end, ]) if not return_x else [0, ], np.array([y_end, ])
+        x = np.arange(num_iters)
+        c = num_iters // 2
+        a = alpha_multiplier / num_iters
+        y = 1. / (1 + np.exp(-a * (x - c)))
+        y = y / (y[-1] - y[0])
+        # Fix values
+        y_diff = y_end - y_start
+        if y_start > y_end:
+            y = y[::-1]
+            y_start, y_end = y_end, y_start
+        if y_diff != 1.0:
+            y = y * abs(y_diff) + y_start
+        y += (y_end - max(y)) + 1e-14
+        # Return
+        if return_x:
+            return x, y
+        return y

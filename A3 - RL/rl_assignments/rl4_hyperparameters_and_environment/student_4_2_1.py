@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # rewards: [golden_fish, jellyfish_1, jellyfish_2, ... , step]
-rewards = [10, -10, -10, 10, -10, 10, -10, 10, -10, 10, -10, 10, -10]
+rewards = [10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, 1000]
 
 # Q learning learning rate
 alpha = 0.1
@@ -9,13 +9,14 @@ alpha = 0.1
 gamma = 0.1
 
 # Epsilon initial
-epsilon_initial = 1
+epsilon_initial = 1.0
 
 # Epsilon final
-epsilon_final = 1
+epsilon_final = 0.0
 
 # Annealing timesteps
-annealing_timesteps = 1
+# 10 episodes * 100 steps / episode
+annealing_timesteps = 1000
 
 # threshold
 threshold = 1e-1

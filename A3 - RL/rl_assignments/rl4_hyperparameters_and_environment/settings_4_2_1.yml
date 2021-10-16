@@ -1,11 +1,11 @@
 # rewards: [golden_fish, jellyfish_1, jellyfish_2, ... , step]
-rewards: [ 20, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -1 ]
+rewards: [10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, 1000]
 
 ## Initial position of the diver. Default: [1, 8]
 init_pos_diver: [ 1, 8 ]
 
 ## Game frames per second. Default: 60 Recommended: 1000
-frames_per_second: 10000
+frames_per_second: 100
 
 ## Player type or nature. Possible values: "ai_rl" or "random". Default: "ai_rl"
 # player_type: "random"
@@ -15,10 +15,10 @@ player_type: "ai_rl"
 alpha: 0.1
 
 ## Q learning discount rate
-gamma: 0.1
+gamma: 0.5
 
 # Disables the graphical engine of the simulator (true by default)
-headless: true
+headless: false
 
 ## Epsilon initial
 epsilon_initial: 1.0
@@ -27,11 +27,11 @@ epsilon_initial: 1.0
 epsilon_final: 0.0
 
 ## Annealing timesteps
-# 100 episodes * 100 steps / episode
-annealing_timesteps: 10000
+# 10 episodes * 100 steps / episode
+annealing_timesteps: 1000
 
 ## threshold
-threshold: 1e-6
+threshold: 1e-1
 
 # Position of the jellyfishes
 jelly_x: [ 3, 3, 4, 4, 4, 4, 5, 5, 8, 7, 8 ]
