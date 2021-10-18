@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 from typing import Tuple, Optional
 
+import matplotlib
 import numpy as np
+from matplotlib import pyplot as plt
 
 from agent import Fish
 from communicator import Communicator
 from shared import SettingLoader
+
+matplotlib.rcParams["font.family"] = 'JetBrains Mono'
 
 
 class FishesModelling:
@@ -196,11 +200,19 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
         # Initialize schedulers
         epsilon_scheduler = ScheduleLinear(schedule_timesteps=self.annealing_timesteps, final_p=self.epsilon_final,
-                                           initial_p=self.epsilon_initial, curve_smoothness=10.0)
-        alpha_scheduler = ScheduleLinear(schedule_timesteps=6*self.annealing_timesteps, initial_p=self.alpha,
-                                         final_p=self.alpha / 2.0, curve_smoothness=10.0)
+                                           initial_p=self.epsilon_initial, curve_smoothness=10.0, plt_title='Epsilon')
+        alpha_scheduler = ScheduleLinear(schedule_timesteps=6 * self.annealing_timesteps, initial_p=self.alpha,
+                                         final_p=self.alpha / 2.0, curve_smoothness=10.0, plt_title='Alpha')
         gamma_scheduler = ScheduleLinear(schedule_timesteps=self.annealing_timesteps, initial_p=self.gamma,
-                                         final_p=self.gamma * 2.5, curve_smoothness=10.0)
+                                         final_p=self.gamma * 2.5, curve_smoothness=10.0, plt_title='Gamma')
+        plt.title(f'Hyper-params curves during the annealing steps (={6 * self.annealing_timesteps})')
+        for var in [epsilon_scheduler.final_p, alpha_scheduler.final_p, gamma_scheduler.final_p]:
+            plt.annotate('%0.2f' % var, xy=(1, var), xytext=(8, 0),
+                         xycoords=('axes fraction', 'data'), textcoords='offset points')
+        plt.xlim((0, 6 * self.annealing_timesteps))
+        plt.legend(loc='upper right')
+        # plt.savefig(f'scheduler.pdf')
+        plt.show()
 
         # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
         # Change the while loop to incorporate a threshold limit, to stop training when the mean difference
@@ -303,33 +315,30 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
 
 class ScheduleLinear(object):
-    SCHEDULER_INDEX = 0
-
     def __init__(self, schedule_timesteps, final_p, initial_p=1.0, curve_smoothness: float = 1.0,
-                 plot_curve: bool = False):
+                 plot_curve: bool = True, plt_title: str = 'Epsilon'):
         self.schedule_timesteps = schedule_timesteps
         self.final_p = final_p
         self.initial_p = initial_p
-        self.__class__.SCHEDULER_INDEX += 1
         if plot_curve:
-            ex, self.epsilon_curve = ScheduleLinear.get_alpha_curve(num_iters=schedule_timesteps, return_x=True,
-                                                                    alpha_multiplier=curve_smoothness,
-                                                                    y_start=initial_p, y_end=final_p)
-            import matplotlib.pyplot as plt
-            plt.plot(ex, self.epsilon_curve)
+            ex, self.curve = ScheduleLinear.get_alpha_curve(num_iters=schedule_timesteps, return_x=True,
+                                                            alpha_multiplier=curve_smoothness,
+                                                            y_start=initial_p, y_end=final_p)
+            if len(ex) < 6000:
+                ex = np.concatenate((ex, np.array(list(range(1000, 6000)))), axis=0)
+                self.curve = np.concatenate((self.curve, np.array([self.curve[-1]] * 5000)),
+                                            axis=0)
+            plt.plot(ex, self.curve, label=plt_title.lower())
             plt.xlabel('iter')
-            plt.ylabel('epsilon')
-            plt.title(f'Epsilon curve during the annealing steps (={schedule_timesteps})')
-            plt.savefig(f'scheduler_{ScheduleLinear.SCHEDULER_INDEX}.pdf')
-            plt.show()
+            plt.ylabel('value')
         else:
-            self.epsilon_curve = ScheduleLinear.get_alpha_curve(num_iters=schedule_timesteps, y_start=initial_p,
-                                                                y_end=final_p, alpha_multiplier=curve_smoothness)
+            self.curve = ScheduleLinear.get_alpha_curve(num_iters=schedule_timesteps, y_start=initial_p,
+                                                        y_end=final_p, alpha_multiplier=curve_smoothness)
 
     def value(self, t):
         # ADD YOUR CODE SNIPPET BETWEEN EX 3.2
         # Return the annealed linear value
-        return self.epsilon_curve[t if t < self.schedule_timesteps else -1]
+        return self.curve[t if t < self.schedule_timesteps else -1]
         # ADD YOUR CODE SNIPPET BETWEEN EX 3.2
 
     @staticmethod
