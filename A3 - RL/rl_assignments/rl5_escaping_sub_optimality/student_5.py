@@ -15,4 +15,4 @@ epsilon_final = 0.0
 annealing_timesteps = 1000
 
 # threshold
-threshold = 10.0
+threshold = 16.0

@@ -31,7 +31,7 @@ epsilon_final: 0.0
 annealing_timesteps: 1000
 
 ## threshold
-threshold: 10.0
+threshold: 16.0
 
 # Position of the jellyfishes
 jelly_x: [ 3, 3, 4, 4, 4, 4, 5, 5, 8, 7, 8 ]
